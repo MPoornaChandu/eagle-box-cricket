@@ -1,4 +1,4 @@
-import type { Fixture, PointsRow, Team } from "./types";
+import type { Fixture, PointsRow, Team, WorkflowStatus } from "./types";
 
 export function cn(...classes: Array<string | false | null | undefined>): string {
   return classes.filter(Boolean).join(" ");
@@ -25,12 +25,31 @@ export function formatTime(time: string): string {
   }).format(date);
 }
 
+export function formatDateTime(isoDate: string): string {
+  if (!isoDate) return "Not available";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(isoDate));
+}
+
+export function getTodayKey(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function getTeamById(teams: Team[], teamId: string): Team | undefined {
   return teams.find((team) => team.id === teamId);
 }
 
 export function getTeamName(teams: Team[], teamId?: string): string {
-  if (!teamId) return "Tie";
+  if (!teamId) return "Tie / No result";
   return getTeamById(teams, teamId)?.name ?? "Deleted Team";
 }
 
@@ -68,4 +87,52 @@ export function getLeaderName(teams: Team[], pointsTable: PointsRow[]): string {
 
 export function normalizeShortName(shortName: string): string {
   return shortName.trim().toUpperCase().slice(0, 5);
+}
+
+export function isResultStatus(status: WorkflowStatus): boolean {
+  return status === "Completed" || status === "Points Updated" || status === "Report Generated";
+}
+
+export function isUpcomingStatus(status: WorkflowStatus): boolean {
+  return status === "Draft" || status === "Scheduled" || status === "Live";
+}
+
+export function statusBadgeClasses(status: WorkflowStatus): string {
+  const base = "rounded-full border px-2 py-1 text-xs font-black";
+  if (status === "Draft") return `${base} border-slate-300/25 bg-slate-400/10 text-slate-200`;
+  if (status === "Scheduled") return `${base} border-cyan-300/25 bg-cyan-400/12 text-cyan-100`;
+  if (status === "Live") return `${base} border-red-300/30 bg-red-400/14 text-red-100`;
+  if (status === "Completed") return `${base} border-emerald-300/25 bg-emerald-400/12 text-emerald-100`;
+  if (status === "Points Updated") return `${base} border-amber-300/30 bg-amber-400/12 text-amber-100`;
+  return `${base} border-violet-300/30 bg-violet-400/12 text-violet-100`;
+}
+
+export function workflowStepIndex(status: WorkflowStatus): number {
+  const steps: WorkflowStatus[] = [
+    "Draft",
+    "Scheduled",
+    "Completed",
+    "Points Updated",
+    "Report Generated"
+  ];
+  if (status === "Live") return 1;
+  return Math.max(0, steps.indexOf(status));
+}
+
+export function escapeCsv(value: string | number | undefined): string {
+  const raw = String(value ?? "");
+  if (/[",\n]/.test(raw)) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+export function downloadTextFile(filename: string, contents: string, type = "text/csv"): void {
+  const blob = new Blob([contents], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

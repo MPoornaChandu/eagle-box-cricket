@@ -23,16 +23,18 @@ export function PointsTableView({ pointsTable, teams, compact = false }: PointsT
               <th className="px-4 py-4">Won</th>
               <th className="px-4 py-4">Lost</th>
               <th className="px-4 py-4">Tied</th>
+              <th className="px-4 py-4">No Result</th>
               <th className="px-4 py-4">Points</th>
               {!compact ? (
                 <>
                   <th className="px-4 py-4">Runs For</th>
+                  <th className="px-4 py-4">Overs Faced</th>
                   <th className="px-4 py-4">Runs Against</th>
-                  <th className="px-4 py-4">Overs For</th>
-                  <th className="px-4 py-4">Overs Against</th>
+                  <th className="px-4 py-4">Overs Bowled</th>
                 </>
               ) : null}
               <th className="px-4 py-4">NRR</th>
+              {!compact ? <th className="px-4 py-4">Last 5</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -65,18 +67,43 @@ export function PointsTableView({ pointsTable, teams, compact = false }: PointsT
                   <td className="px-4 py-4 text-emerald-200">{row.won}</td>
                   <td className="px-4 py-4 text-red-200">{row.lost}</td>
                   <td className="px-4 py-4 text-cyan-200">{row.tied}</td>
+                  <td className="px-4 py-4 text-slate-200">{row.noResult}</td>
                   <td className="px-4 py-4 font-black text-white">{row.points}</td>
                   {!compact ? (
                     <>
                       <td className="px-4 py-4 text-slate-200">{row.runsFor}</td>
+                      <td className="px-4 py-4 text-slate-200">{row.oversFaced.toFixed(2)}</td>
                       <td className="px-4 py-4 text-slate-200">{row.runsAgainst}</td>
-                      <td className="px-4 py-4 text-slate-200">{row.oversFor.toFixed(2)}</td>
-                      <td className="px-4 py-4 text-slate-200">{row.oversAgainst.toFixed(2)}</td>
+                      <td className="px-4 py-4 text-slate-200">{row.oversBowled.toFixed(2)}</td>
                     </>
                   ) : null}
                   <td className="px-4 py-4 font-black text-cyan-100">
                     {row.netRunRate.toFixed(3)}
                   </td>
+                  {!compact ? (
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1">
+                        {row.lastFive.length > 0 ? (
+                          row.lastFive.map((form, formIndex) => (
+                            <span
+                              key={`${row.teamId}-${form}-${formIndex}`}
+                              className={cn(
+                                "grid h-7 min-w-7 place-items-center rounded-full border px-1 text-[0.68rem] font-black",
+                                form === "W" && "border-emerald-300/30 bg-emerald-400/12 text-emerald-100",
+                                form === "L" && "border-red-300/30 bg-red-400/12 text-red-100",
+                                form === "T" && "border-cyan-300/30 bg-cyan-400/12 text-cyan-100",
+                                form === "NR" && "border-slate-300/30 bg-slate-400/12 text-slate-100"
+                              )}
+                            >
+                              {form}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">-</span>
+                        )}
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}

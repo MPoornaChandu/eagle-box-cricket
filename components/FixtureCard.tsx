@@ -1,22 +1,30 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CalendarClock, Edit3, MapPin, Trash2 } from "lucide-react";
+import { CalendarClock, Edit3, FileText, MapPin, Trash2 } from "lucide-react";
+import { getFixtureResult } from "@/lib/points";
 import type { Fixture, Team } from "@/lib/types";
-import { formatDate, formatScore, formatTime, getTeamName } from "@/lib/utils";
+import {
+  formatDate,
+  formatScore,
+  formatTime,
+  getTeamName,
+  statusBadgeClasses
+} from "@/lib/utils";
+import { WorkflowProgress } from "./WorkflowProgress";
 
 interface FixtureCardProps {
   fixture: Fixture;
   teams: Team[];
   onEdit?: (fixture: Fixture) => void;
-  onDelete: (fixture: Fixture) => void;
+  onDelete?: (fixture: Fixture) => void;
   compact?: boolean;
 }
 
 export function FixtureCard({ fixture, teams, onEdit, onDelete, compact = false }: FixtureCardProps) {
   const teamA = getTeamName(teams, fixture.teamAId);
   const teamB = getTeamName(teams, fixture.teamBId);
-  const completed = fixture.status === "completed";
+  const result = getFixtureResult(fixture);
 
   return (
     <motion.article
@@ -31,17 +39,16 @@ export function FixtureCard({ fixture, teams, onEdit, onDelete, compact = false 
             <h2 className="break-words text-xl font-black text-white">
               {teamA} <span className="text-cyan-200">vs</span> {teamB}
             </h2>
-            <span
-              className={
-                completed
-                  ? "rounded-full border border-emerald-300/25 bg-emerald-400/12 px-2 py-1 text-xs font-black text-emerald-100"
-                  : "rounded-full border border-cyan-300/25 bg-cyan-400/12 px-2 py-1 text-xs font-black text-cyan-100"
-              }
-            >
-              {completed ? "Completed" : "Upcoming"}
+            <span className={statusBadgeClasses(fixture.status)}>{fixture.status}</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-black text-slate-200">
+              {fixture.matchType}
             </span>
           </div>
           <div className="mt-4 grid gap-2 text-sm text-slate-300">
+            <p className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-violet-200" />
+              {fixture.matchId}
+            </p>
             <p className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-cyan-200" />
               {formatDate(fixture.date)} at {formatTime(fixture.time)}
@@ -50,25 +57,32 @@ export function FixtureCard({ fixture, teams, onEdit, onDelete, compact = false 
               <MapPin className="h-4 w-4 text-emerald-200" />
               {fixture.venue}
             </p>
+            {fixture.notes ? <p className="text-xs leading-5 text-slate-400">{fixture.notes}</p> : null}
           </div>
         </div>
 
-        {completed ? (
+        {result ? (
           <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3 text-sm">
             <p className="font-black text-white">
-              {formatScore(fixture.teamAScore, fixture.teamAWickets)} -{" "}
-              {formatScore(fixture.teamBScore, fixture.teamBWickets)}
+              {formatScore(result.teamARuns, result.teamAWickets)} -{" "}
+              {formatScore(result.teamBRuns, result.teamBWickets)}
             </p>
             <p className="mt-1 text-xs text-slate-400">
-              Winner: {fixture.winnerTeamId ? getTeamName(teams, fixture.winnerTeamId) : "Tie"}
+              {result.resultType}: {result.winnerTeamId ? getTeamName(teams, result.winnerTeamId) : "Tie / no result"}
             </p>
           </div>
         ) : null}
       </div>
 
       {!compact ? (
+        <div className="mt-5">
+          <WorkflowProgress status={fixture.status} />
+        </div>
+      ) : null}
+
+      {!compact ? (
         <div className="mt-5 flex flex-wrap gap-2">
-          {!completed && onEdit ? (
+          {onEdit ? (
             <button
               type="button"
               title="Edit fixture"
@@ -79,15 +93,17 @@ export function FixtureCard({ fixture, teams, onEdit, onDelete, compact = false 
               Edit
             </button>
           ) : null}
-          <button
-            type="button"
-            title="Delete fixture"
-            onClick={() => onDelete(fixture)}
-            className="danger-button flex min-w-[8rem] flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-black"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </button>
+          {onDelete ? (
+            <button
+              type="button"
+              title="Delete fixture"
+              onClick={() => onDelete(fixture)}
+              className="danger-button flex min-w-[8rem] flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-black"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </button>
+          ) : null}
         </div>
       ) : null}
     </motion.article>

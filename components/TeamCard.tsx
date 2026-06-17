@@ -1,9 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Edit3, MapPin, Phone, Trash2, UserRound } from "lucide-react";
+import { CalendarDays, Edit3, MapPin, Phone, Trash2, UserRound, UsersRound } from "lucide-react";
 import type { Team } from "@/lib/types";
-import { getInitials } from "@/lib/utils";
+import { formatDate, getInitials } from "@/lib/utils";
 
 interface TeamCardProps {
   team: Team;
@@ -32,6 +32,15 @@ export function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
             <span className="rounded-full border border-cyan-300/24 bg-cyan-300/10 px-2 py-1 text-xs font-black text-cyan-100">
               {team.shortName}
             </span>
+            <span
+              className={
+                team.status === "Active"
+                  ? "rounded-full border border-emerald-300/24 bg-emerald-300/10 px-2 py-1 text-xs font-black text-emerald-100"
+                  : "rounded-full border border-slate-300/24 bg-slate-300/10 px-2 py-1 text-xs font-black text-slate-200"
+              }
+            >
+              {team.status}
+            </span>
           </div>
           <div className="mt-4 grid gap-2 text-sm text-slate-300">
             <p className="flex items-center gap-2">
@@ -39,12 +48,20 @@ export function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
               {team.captain}
             </p>
             <p className="flex items-center gap-2">
+              <UsersRound className="h-4 w-4 text-violet-200" />
+              {team.coach}
+            </p>
+            <p className="flex items-center gap-2">
               <Phone className="h-4 w-4 text-cyan-200" />
-              {team.contact}
+              {team.contact || "Contact optional"}
             </p>
             <p className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-amber-200" />
-              {team.city}
+              {team.homeVenue}
+            </p>
+            <p className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-slate-300" />
+              Created {formatDate(team.createdAt.slice(0, 10))}
             </p>
           </div>
         </div>

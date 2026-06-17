@@ -3,11 +3,15 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3,
+  Bot,
   CalendarDays,
+  ClipboardCheck,
+  FileText,
   Home,
   ListOrdered,
   LogOut,
   Menu,
+  Network,
   Shield,
   Trophy,
   Users,
@@ -25,7 +29,11 @@ const navItems = [
   { href: "/fixtures", label: "Fixtures", icon: CalendarDays },
   { href: "/results", label: "Results", icon: Trophy },
   { href: "/points-table", label: "Points Table", icon: ListOrdered },
-  { href: "/reports", label: "Reports", icon: BarChart3 }
+  { href: "/workflow", label: "Workflow", icon: Network },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/smart-assistant", label: "Smart Assistant", icon: Bot },
+  { href: "/test-cases", label: "Test Cases", icon: ClipboardCheck },
+  { href: "/documentation", label: "Documentation", icon: FileText }
 ];
 
 interface SidebarProps {
@@ -62,7 +70,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </Link>
 
-      <nav className="grid gap-1 px-3">
+      <nav className="grid min-h-0 flex-1 gap-1 overflow-y-auto px-3 pb-3">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href;
@@ -85,7 +93,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
 
-      <div className="mt-auto px-3 pb-5">
+      <div className="px-3 pb-5">
         <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
           <div className="flex items-center gap-2 text-xs font-bold text-emerald-200">
             <Shield className="h-4 w-4" />

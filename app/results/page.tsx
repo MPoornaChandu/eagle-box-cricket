@@ -8,9 +8,10 @@ import { EmptyState } from "@/components/EmptyState";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { PageHeader } from "@/components/PageHeader";
 import { ResultForm } from "@/components/ResultForm";
+import { getFixtureResult } from "@/lib/points";
 import { getFixtures, getTeams } from "@/lib/storage";
 import type { Fixture, Team } from "@/lib/types";
-import { cn, formatDate, formatTime, getTeamName } from "@/lib/utils";
+import { cn, formatDate, formatScore, formatTime, getTeamName, statusBadgeClasses } from "@/lib/utils";
 
 export default function ResultsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -30,15 +31,15 @@ export default function ResultsPage() {
     setLoading(false);
   }, []);
 
-  const upcomingFixtures = useMemo(
+  const resultFixtures = useMemo(
     () =>
       fixtures
-        .filter((fixture) => fixture.status === "upcoming")
+        .filter((fixture) => fixture.status !== "Draft" && fixture.status !== "Report Generated")
         .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)),
     [fixtures]
   );
 
-  const selectedFixture = upcomingFixtures.find((fixture) => fixture.id === selectedFixtureId);
+  const selectedFixture = resultFixtures.find((fixture) => fixture.id === selectedFixtureId);
 
   const handleSubmitted = (nextFixtures: Fixture[], celebration: string) => {
     setFixtures(nextFixtures);
@@ -56,16 +57,17 @@ export default function ResultsPage() {
           <PageHeader
             title="Results"
             breadcrumb="Dashboard / Results"
-            description="Select an upcoming fixture, enter the final scorecard, and trigger automatic standings recalculation."
+            description="Enter, review, or adjust scorecards. Saving a result recalculates the points table from completed fixtures."
           />
 
           <section className="grid gap-6 xl:grid-cols-[0.85fr_1.4fr]">
             <div className="glass-panel rounded-lg p-5">
-              <h2 className="mb-4 text-xl font-black text-white">Upcoming Matches</h2>
-              {upcomingFixtures.length > 0 ? (
+              <h2 className="mb-4 text-xl font-black text-white">Result Queue</h2>
+              {resultFixtures.length > 0 ? (
                 <div className="grid gap-3">
-                  {upcomingFixtures.map((fixture) => {
+                  {resultFixtures.map((fixture) => {
                     const active = fixture.id === selectedFixtureId;
+                    const result = getFixtureResult(fixture);
 
                     return (
                       <button
@@ -80,9 +82,12 @@ export default function ResultsPage() {
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <p className="font-black text-white">
-                            {getTeamName(teams, fixture.teamAId)} vs {getTeamName(teams, fixture.teamBId)}
-                          </p>
+                          <div>
+                            <p className="font-black text-white">
+                              {fixture.matchId}: {getTeamName(teams, fixture.teamAId)} vs {getTeamName(teams, fixture.teamBId)}
+                            </p>
+                            <span className={statusBadgeClasses(fixture.status)}>{fixture.status}</span>
+                          </div>
                           {active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-200" /> : null}
                         </div>
                         <p className="mt-3 flex items-center gap-2 text-sm text-slate-300">
@@ -93,14 +98,19 @@ export default function ResultsPage() {
                           <MapPin className="h-4 w-4 text-emerald-200" />
                           {fixture.venue}
                         </p>
+                        {result ? (
+                          <p className="mt-2 text-xs font-semibold text-cyan-100">
+                            {formatScore(result.teamARuns, result.teamAWickets)} vs {formatScore(result.teamBRuns, result.teamBWickets)} - {result.resultType}
+                          </p>
+                        ) : null}
                       </button>
                     );
                   })}
                 </div>
               ) : (
                 <EmptyState
-                  title="No upcoming fixtures"
-                  description="Create a fixture or reset demo data to submit match results."
+                  title="No result-ready fixtures"
+                  description="Create or schedule a fixture before entering match results."
                 />
               )}
             </div>

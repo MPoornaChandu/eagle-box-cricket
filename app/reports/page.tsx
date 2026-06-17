@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ClipboardCopy, Download, Printer } from "lucide-react";
+import { ClipboardCopy, Download, FileDown, Printer } from "lucide-react";
+import { AlertsPanel } from "@/components/AlertsPanel";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassCard } from "@/components/GlassCard";
@@ -9,32 +10,47 @@ import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { PageHeader } from "@/components/PageHeader";
 import { PointsTableView } from "@/components/PointsTableView";
 import { useToast } from "@/components/ToastProvider";
-import { getFixtures, getPointsTable, getTeams } from "@/lib/storage";
-import type { Fixture, PointsRow, Team } from "@/lib/types";
+import { getFixtureResult, isCompletedFixture } from "@/lib/points";
 import {
+  addReportLog,
+  generateAlerts,
+  getFixtures,
+  getPointsTable,
+  getReports,
+  getTeams
+} from "@/lib/storage";
+import type { AlertItem, Fixture, PointsRow, ReportLog, Team } from "@/lib/types";
+import {
+  downloadTextFile,
+  escapeCsv,
   formatDate,
+  formatDateTime,
   formatScore,
   formatTime,
   getFixtureTitle,
   getLeaderName,
-  getTeamName
+  getTeamName,
+  isResultStatus
 } from "@/lib/utils";
 
 interface ReportSummary {
   totalTeams: number;
   totalMatches: number;
   completedMatches: number;
-  upcomingMatches: number;
+  pendingMatches: number;
   currentLeader: string;
+  bestNrrTeam: string;
 }
 
 function buildSummary(teams: Team[], fixtures: Fixture[], pointsTable: PointsRow[]): ReportSummary {
+  const bestNrr = [...pointsTable].sort((a, b) => b.netRunRate - a.netRunRate)[0];
   return {
     totalTeams: teams.length,
     totalMatches: fixtures.length,
-    completedMatches: fixtures.filter((fixture) => fixture.status === "completed").length,
-    upcomingMatches: fixtures.filter((fixture) => fixture.status === "upcoming").length,
-    currentLeader: getLeaderName(teams, pointsTable)
+    completedMatches: fixtures.filter(isCompletedFixture).length,
+    pendingMatches: fixtures.filter((fixture) => !isResultStatus(fixture.status)).length,
+    currentLeader: getLeaderName(teams, pointsTable),
+    bestNrrTeam: bestNrr && bestNrr.played > 0 ? getTeamName(teams, bestNrr.teamId) : "No NRR leader yet"
   };
 }
 
@@ -44,8 +60,9 @@ function buildPlainTextSummary(summary: ReportSummary): string {
     `Total teams: ${summary.totalTeams}`,
     `Total matches: ${summary.totalMatches}`,
     `Completed matches: ${summary.completedMatches}`,
-    `Upcoming matches: ${summary.upcomingMatches}`,
-    `Current leader: ${summary.currentLeader}`
+    `Pending matches: ${summary.pendingMatches}`,
+    `Current leader: ${summary.currentLeader}`,
+    `Best NRR team: ${summary.bestNrrTeam}`
   ].join("\n");
 }
 
@@ -63,57 +80,108 @@ async function copyText(text: string): Promise<void> {
   document.body.removeChild(textArea);
 }
 
+function pointsCsv(pointsTable: PointsRow[], teams: Team[]): string {
+  const rows = [
+    ["Position", "Team", "Played", "Won", "Lost", "Tied", "No Result", "Points", "Runs For", "Overs Faced", "Runs Against", "Overs Bowled", "NRR", "Last 5"],
+    ...pointsTable.map((row, index) => [
+      index + 1,
+      getTeamName(teams, row.teamId),
+      row.played,
+      row.won,
+      row.lost,
+      row.tied,
+      row.noResult,
+      row.points,
+      row.runsFor,
+      row.oversFaced.toFixed(2),
+      row.runsAgainst,
+      row.oversBowled.toFixed(2),
+      row.netRunRate.toFixed(3),
+      row.lastFive.join(" ")
+    ])
+  ];
+  return rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
+}
+
+function fixturesCsv(fixtures: Fixture[], teams: Team[]): string {
+  const rows = [
+    ["Match ID", "Team A", "Team B", "Date", "Time", "Venue", "Type", "Status", "Winner", "Result"],
+    ...fixtures.map((fixture) => {
+      const result = getFixtureResult(fixture);
+      return [
+        fixture.matchId,
+        getTeamName(teams, fixture.teamAId),
+        getTeamName(teams, fixture.teamBId),
+        fixture.date,
+        fixture.time,
+        fixture.venue,
+        fixture.matchType,
+        fixture.status,
+        result?.winnerTeamId ? getTeamName(teams, result.winnerTeamId) : "",
+        result ? `${formatScore(result.teamARuns, result.teamAWickets)} vs ${formatScore(result.teamBRuns, result.teamBWickets)} ${result.resultType}` : "Pending"
+      ];
+    })
+  ];
+  return rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
+}
+
 export default function ReportsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [pointsTable, setPointsTable] = useState<PointsRow[]>([]);
+  const [reports, setReports] = useState<ReportLog[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
+  const loadData = () => {
+    const nextTeams = getTeams();
+    const nextFixtures = getFixtures();
+    const nextPoints = getPointsTable();
+    const nextReports = getReports();
+    setTeams(nextTeams);
+    setFixtures(nextFixtures);
+    setPointsTable(nextPoints);
+    setReports(nextReports);
+    setAlerts(generateAlerts(nextTeams, nextFixtures, nextReports));
+  };
+
   useEffect(() => {
-    setTeams(getTeams());
-    setFixtures(getFixtures());
-    setPointsTable(getPointsTable());
+    loadData();
     setLoading(false);
   }, []);
 
   const summary = useMemo(() => buildSummary(teams, fixtures, pointsTable), [teams, fixtures, pointsTable]);
   const completedFixtures = useMemo(
-    () =>
-      fixtures
-        .filter((fixture) => fixture.status === "completed")
-        .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "")),
+    () => fixtures.filter(isCompletedFixture).sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? "")),
     [fixtures]
   );
   const upcomingFixtures = useMemo(
-    () =>
-      fixtures
-        .filter((fixture) => fixture.status === "upcoming")
-        .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)),
+    () => fixtures.filter((fixture) => !isResultStatus(fixture.status)).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)),
     [fixtures]
   );
 
-  const handleDownload = () => {
-    const report = {
-      generatedAt: new Date().toISOString(),
-      summary,
-      teams,
-      fixtures,
-      pointsTable
-    };
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "eagle-box-cricket-report.json";
-    anchor.click();
-    URL.revokeObjectURL(url);
-    showToast({ type: "success", title: "Report downloaded", description: "JSON export is ready." });
+  const logReport = (type: ReportLog["type"], title: string, reportSummary: string) => {
+    addReportLog({ type, title, summary: reportSummary });
+    loadData();
+  };
+
+  const handlePointsCsv = () => {
+    downloadTextFile("eagle-box-points-table.csv", pointsCsv(pointsTable, teams));
+    logReport("Points Table Report", "Exported points table CSV", "CSV export generated for full points table.");
+    showToast({ type: "success", title: "CSV exported", description: "Points table CSV is ready." });
+  };
+
+  const handleFixturesCsv = () => {
+    downloadTextFile("eagle-box-fixtures.csv", fixturesCsv(fixtures, teams));
+    logReport("Fixtures Report", "Exported fixtures CSV", "CSV export generated for fixtures and results.");
+    showToast({ type: "success", title: "CSV exported", description: "Fixtures CSV is ready." });
   };
 
   const handleCopy = async () => {
     try {
       await copyText(buildPlainTextSummary(summary));
+      logReport("Tournament Summary", "Copied tournament summary", "Tournament summary copied for submission notes.");
       showToast({ type: "success", title: "Summary copied", description: "Tournament summary copied to clipboard." });
     } catch {
       showToast({ type: "error", title: "Copy failed", description: "Clipboard access was not available." });
@@ -121,8 +189,14 @@ export default function ReportsPage() {
   };
 
   const handlePrint = () => {
+    logReport("Tournament Summary", "Printed tournament report", "Print-friendly tournament report generated.");
     showToast({ type: "info", title: "Print dialog opening", description: "Save as PDF from the print dialog." });
     window.setTimeout(() => window.print(), 150);
+  };
+
+  const handleMockPdf = () => {
+    logReport("Mock PDF Report", "Generated mock PDF report", "Mock PDF action logged. Use Print / Save as PDF for a browser PDF export.");
+    showToast({ type: "success", title: "Mock PDF generated", description: "Report history updated. Print remains available for a real PDF." });
   };
 
   return (
@@ -135,25 +209,57 @@ export default function ReportsPage() {
             <PageHeader
               title="Reports"
               breadcrumb="Dashboard / Reports"
-              description="Export tournament data, copy a summary, or print a clean report for submission."
+              description="Generate tournament, teams, fixtures, results, points table, and pending-action reports."
               actions={
                 <div className="report-actions flex flex-wrap gap-2">
-                  <button type="button" onClick={handleDownload} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
+                  <button type="button" onClick={handlePointsCsv} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
                     <Download className="h-4 w-4" />
-                    Download JSON Report
+                    Export Points CSV
+                  </button>
+                  <button type="button" onClick={handleFixturesCsv} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
+                    <Download className="h-4 w-4" />
+                    Export Fixtures CSV
                   </button>
                   <button type="button" onClick={handleCopy} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
                     <ClipboardCopy className="h-4 w-4" />
                     Copy Summary
                   </button>
+                  <button type="button" onClick={handleMockPdf} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
+                    <FileDown className="h-4 w-4" />
+                    Generate Mock PDF
+                  </button>
                   <button type="button" onClick={handlePrint} className="premium-button flex items-center gap-2 px-4 py-2 text-sm">
                     <Printer className="h-4 w-4" />
-                    Print / Save as PDF
+                    Print Report
                   </button>
                 </div>
               }
             />
           </div>
+
+          <section className="no-print mb-6 grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+            <GlassCard className="p-5" hover={false}>
+              <h2 className="mb-4 text-xl font-black text-white">Pending Actions Report</h2>
+              <AlertsPanel alerts={alerts} />
+            </GlassCard>
+            <GlassCard className="p-5" hover={false}>
+              <h2 className="mb-4 text-xl font-black text-white">Generated Reports History</h2>
+              {reports.length > 0 ? (
+                <div className="grid gap-3">
+                  {reports.slice(0, 8).map((report) => (
+                    <div key={report.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                      <p className="font-black text-white">{report.title}</p>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">{report.type}</p>
+                      <p className="mt-2 text-sm text-slate-300">{report.summary}</p>
+                      <p className="mt-2 text-xs text-slate-500">{formatDateTime(report.generatedAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No report history" description="Export, print, or generate a mock PDF to add history." />
+              )}
+            </GlassCard>
+          </section>
 
           <GlassCard className="report-content p-5 md:p-7" hover={false}>
             <div className="mb-6 border-b border-white/10 pb-5">
@@ -166,13 +272,14 @@ export default function ReportsPage() {
               </p>
             </div>
 
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               {[
                 ["Total teams", summary.totalTeams],
                 ["Total matches", summary.totalMatches],
                 ["Completed", summary.completedMatches],
-                ["Upcoming", summary.upcomingMatches],
-                ["Leader", summary.currentLeader]
+                ["Pending", summary.pendingMatches],
+                ["Leader", summary.currentLeader],
+                ["Best NRR", summary.bestNrrTeam]
               ].map(([label, value]) => (
                 <div key={label} className="rounded-lg border border-white/10 bg-white/[0.045] p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{label}</p>
@@ -182,7 +289,21 @@ export default function ReportsPage() {
             </section>
 
             <section className="mt-7">
-              <h2 className="mb-3 text-xl font-black text-white">Completed Matches</h2>
+              <h2 className="mb-3 text-xl font-black text-white">Teams Report</h2>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {teams.map((team) => (
+                  <div key={team.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                    <p className="font-black text-white">{team.name} ({team.shortName})</p>
+                    <p className="mt-2 text-sm text-slate-300">Captain: {team.captain}</p>
+                    <p className="text-sm text-slate-300">Coach: {team.coach}</p>
+                    <p className="text-sm text-slate-300">Venue: {team.homeVenue}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="mt-7">
+              <h2 className="mb-3 text-xl font-black text-white">Results Report</h2>
               {completedFixtures.length > 0 ? (
                 <div className="overflow-hidden rounded-lg border border-white/10">
                   <div className="overflow-x-auto">
@@ -197,20 +318,20 @@ export default function ReportsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {completedFixtures.map((fixture) => (
-                          <tr key={fixture.id} className="border-t border-white/10">
-                            <td className="px-4 py-3 font-black text-white">{getFixtureTitle(fixture, teams)}</td>
-                            <td className="px-4 py-3 text-slate-200">
-                              {formatScore(fixture.teamAScore, fixture.teamAWickets)} vs{" "}
-                              {formatScore(fixture.teamBScore, fixture.teamBWickets)}
-                            </td>
-                            <td className="px-4 py-3 text-emerald-100">
-                              {fixture.winnerTeamId ? getTeamName(teams, fixture.winnerTeamId) : "Tie"}
-                            </td>
-                            <td className="px-4 py-3 text-slate-200">{formatDate(fixture.date)}</td>
-                            <td className="px-4 py-3 text-slate-200">{fixture.venue}</td>
-                          </tr>
-                        ))}
+                        {completedFixtures.map((fixture) => {
+                          const result = getFixtureResult(fixture);
+                          return (
+                            <tr key={fixture.id} className="border-t border-white/10">
+                              <td className="px-4 py-3 font-black text-white">{fixture.matchId}: {getFixtureTitle(fixture, teams)}</td>
+                              <td className="px-4 py-3 text-slate-200">
+                                {result ? `${formatScore(result.teamARuns, result.teamAWickets)} vs ${formatScore(result.teamBRuns, result.teamBWickets)}` : "-"}
+                              </td>
+                              <td className="px-4 py-3 text-emerald-100">{result?.winnerTeamId ? getTeamName(teams, result.winnerTeamId) : result?.resultType ?? "Tie"}</td>
+                              <td className="px-4 py-3 text-slate-200">{formatDate(fixture.date)}</td>
+                              <td className="px-4 py-3 text-slate-200">{fixture.venue}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -221,26 +342,24 @@ export default function ReportsPage() {
             </section>
 
             <section className="mt-7">
-              <h2 className="mb-3 text-xl font-black text-white">Upcoming Matches</h2>
+              <h2 className="mb-3 text-xl font-black text-white">Fixtures Report</h2>
               {upcomingFixtures.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-2">
                   {upcomingFixtures.map((fixture) => (
                     <div key={fixture.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-                      <p className="font-black text-white">{getFixtureTitle(fixture, teams)}</p>
-                      <p className="mt-2 text-sm text-slate-300">
-                        {formatDate(fixture.date)} at {formatTime(fixture.time)}
-                      </p>
-                      <p className="mt-1 text-sm text-slate-300">{fixture.venue}</p>
+                      <p className="font-black text-white">{fixture.matchId}: {getFixtureTitle(fixture, teams)}</p>
+                      <p className="mt-2 text-sm text-slate-300">{formatDate(fixture.date)} at {formatTime(fixture.time)}</p>
+                      <p className="mt-1 text-sm text-slate-300">{fixture.venue} - {fixture.status}</p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <EmptyState title="No upcoming matches" description="Upcoming fixtures will appear here." />
+                <EmptyState title="No pending matches" description="Pending fixtures will appear here." />
               )}
             </section>
 
             <section className="mt-7">
-              <h2 className="mb-3 text-xl font-black text-white">Full Points Table</h2>
+              <h2 className="mb-3 text-xl font-black text-white">Points Table Report</h2>
               {pointsTable.length > 0 ? (
                 <PointsTableView pointsTable={pointsTable} teams={teams} />
               ) : (
