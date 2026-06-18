@@ -37,7 +37,7 @@ export function FixtureCard({ fixture, teams, onEdit, onDelete, compact = false 
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="break-words text-xl font-black text-white">
-              {teamA} <span className="text-cyan-200">vs</span> {teamB}
+              {teamA} <span className="text-amber-200">vs</span> {teamB}
             </h2>
             <span className={statusBadgeClasses(fixture.status)}>{fixture.status}</span>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-black text-slate-200">
@@ -50,7 +50,7 @@ export function FixtureCard({ fixture, teams, onEdit, onDelete, compact = false 
               {fixture.matchId}
             </p>
             <p className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-cyan-200" />
+              <CalendarClock className="h-4 w-4 text-emerald-200" />
               {formatDate(fixture.date)} at {formatTime(fixture.time)}
             </p>
             <p className="flex items-center gap-2">

@@ -18,7 +18,7 @@ export function PageHeader({ title, breadcrumb, description, actions }: PageHead
       className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
     >
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.28em] text-cyan-300/80">
+        <p className="text-xs font-bold uppercase tracking-[0.28em] text-emerald-300/80">
           {breadcrumb}
         </p>
         <h1 className="mt-2 text-2xl font-black text-white md:text-4xl">{title}</h1>

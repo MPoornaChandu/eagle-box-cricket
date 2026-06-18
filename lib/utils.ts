@@ -99,12 +99,12 @@ export function isUpcomingStatus(status: WorkflowStatus): boolean {
 
 export function statusBadgeClasses(status: WorkflowStatus): string {
   const base = "rounded-full border px-2 py-1 text-xs font-black";
-  if (status === "Draft") return `${base} border-slate-300/25 bg-slate-400/10 text-slate-200`;
-  if (status === "Scheduled") return `${base} border-cyan-300/25 bg-cyan-400/12 text-cyan-100`;
+  if (status === "Draft") return `${base} border-stone-300/25 bg-stone-400/10 text-slate-200`;
+  if (status === "Scheduled") return `${base} border-emerald-300/25 bg-emerald-400/12 text-emerald-100`;
   if (status === "Live") return `${base} border-red-300/30 bg-red-400/14 text-red-100`;
   if (status === "Completed") return `${base} border-emerald-300/25 bg-emerald-400/12 text-emerald-100`;
   if (status === "Points Updated") return `${base} border-amber-300/30 bg-amber-400/12 text-amber-100`;
-  return `${base} border-violet-300/30 bg-violet-400/12 text-violet-100`;
+  return `${base} border-yellow-300/30 bg-yellow-400/12 text-yellow-100`;
 }
 
 export function workflowStepIndex(status: WorkflowStatus): number {
@@ -125,6 +125,12 @@ export function escapeCsv(value: string | number | undefined): string {
     return `"${raw.replace(/"/g, '""')}"`;
   }
   return raw;
+}
+
+export function formatNrr(value: number): string {
+  if (value === 0) return "0.000";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(3)}`;
 }
 
 export function downloadTextFile(filename: string, contents: string, type = "text/csv"): void {

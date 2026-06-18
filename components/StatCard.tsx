@@ -9,17 +9,16 @@ interface StatCardProps {
   label: string;
   value: number | string;
   icon: ReactNode;
-  accent?: "emerald" | "cyan" | "gold" | "red";
+  accent?: "emerald" | "gold" | "red";
 }
 
 const accentClasses = {
   emerald: "border-emerald-300/25 bg-emerald-400/12 text-emerald-200",
-  cyan: "border-cyan-300/25 bg-cyan-400/12 text-cyan-200",
   gold: "border-amber-300/30 bg-amber-400/12 text-amber-200",
   red: "border-red-300/25 bg-red-400/12 text-red-200"
 };
 
-export function StatCard({ label, value, icon, accent = "cyan" }: StatCardProps) {
+export function StatCard({ label, value, icon, accent = "emerald" }: StatCardProps) {
   const [displayValue, setDisplayValue] = useState(typeof value === "number" ? 0 : value);
 
   useEffect(() => {

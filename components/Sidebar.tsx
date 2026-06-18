@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { logout as storageLogout } from "@/lib/storage";
+import { getDataSourceStatus, logout as storageLogout } from "@/lib/storage";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "./ThemeToggle";
 import { useToast } from "./ToastProvider";
 
 const navItems = [
@@ -46,6 +47,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { showToast } = useToast();
+  const dataSource = getDataSourceStatus();
 
   const handleLogout = () => {
     storageLogout();
@@ -66,7 +68,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
         <div>
           <p className="text-sm font-black text-white">Eagle Box</p>
-          <p className="text-xs font-semibold text-cyan-200/80">Cricket Ops</p>
+          <p className="text-xs font-semibold text-amber-200/80">Cricket Ops</p>
         </div>
       </Link>
 
@@ -83,7 +85,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               className={cn(
                 "group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/[0.08] hover:text-white",
                 active &&
-                  "border border-cyan-300/25 bg-cyan-300/12 text-cyan-50 shadow-glow"
+                  "border border-emerald-300/30 bg-emerald-300/12 text-emerald-50 shadow-glow"
               )}
             >
               <Icon className="h-5 w-5" />
@@ -94,12 +96,21 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="px-3 pb-5">
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">
+              Appearance
+            </p>
+            <p className="mt-1 text-xs text-slate-400">Persists after refresh</p>
+          </div>
+          <ThemeToggle compact />
+        </div>
         <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
           <div className="flex items-center gap-2 text-xs font-bold text-emerald-200">
             <Shield className="h-4 w-4" />
             Demo Admin
           </div>
-          <p className="mt-1 text-xs text-slate-400">Local session via localStorage</p>
+          <p className="mt-1 text-xs text-slate-400">{dataSource.label}</p>
         </div>
         <button
           type="button"

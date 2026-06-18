@@ -1,5 +1,9 @@
 export type TeamStatus = "Active" | "Inactive";
 
+export type ThemeMode = "dark" | "light" | "system";
+
+export type ResolvedThemeMode = "dark" | "light";
+
 export type WorkflowStatus =
   | "Draft"
   | "Scheduled"
@@ -80,9 +84,9 @@ export interface PointsRow {
   noResult: number;
   points: number;
   runsFor: number;
-  oversFaced: number;
+  ballsFaced: number;
   runsAgainst: number;
-  oversBowled: number;
+  ballsBowled: number;
   netRunRate: number;
   lastFive: FormResult[];
   lastUpdated: string;
@@ -95,8 +99,10 @@ export interface DashboardStats {
   upcomingMatches: number;
   pendingResults: number;
   leaderTeamName: string;
+  bestNrr: string;
   reportsGenerated: number;
   alertsCount: number;
+  databaseStatus: string;
 }
 
 export type TeamInput = Omit<Team, "id" | "createdAt">;
@@ -159,10 +165,16 @@ export interface ActivityItem {
   type: "team" | "fixture" | "result" | "report" | "workflow" | "system";
 }
 
+export type ActivityLog = ActivityItem;
+
+export type SmartSummaryMode = "gemini" | "rule-based";
+
 export interface SmartSummary {
-  headline: string;
+  mode: SmartSummaryMode;
+  summary: string;
   insights: string[];
-  recommendedAction: string;
+  recommendedActions: string[];
+  risks: string[];
   generatedAt: string;
 }
 

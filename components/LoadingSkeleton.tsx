@@ -11,7 +11,7 @@ export function LoadingSkeleton({ label = "Loading dashboard" }: { label?: strin
         className="glass-panel w-full max-w-lg rounded-lg p-6"
       >
         <div className="mb-5 flex items-center gap-3">
-          <div className="h-11 w-11 animate-pulse rounded-lg bg-cyan-300/20" />
+          <div className="h-11 w-11 animate-pulse rounded-lg bg-emerald-300/20" />
           <div className="space-y-2">
             <div className="h-3 w-44 animate-pulse rounded-full bg-white/18" />
             <div className="h-3 w-28 animate-pulse rounded-full bg-white/10" />

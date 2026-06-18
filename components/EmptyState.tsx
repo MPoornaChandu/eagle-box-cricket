@@ -17,7 +17,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
       animate={{ opacity: 1, y: 0 }}
       className="glass-panel grid place-items-center rounded-lg px-6 py-12 text-center"
     >
-      <div className="grid h-14 w-14 place-items-center rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-cyan-200">
+      <div className="grid h-14 w-14 place-items-center rounded-lg border border-emerald-300/25 bg-emerald-300/10 text-emerald-200">
         <CircleOff className="h-7 w-7" />
       </div>
       <h2 className="mt-5 text-xl font-black text-white">{title}</h2>

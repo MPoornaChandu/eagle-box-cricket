@@ -14,6 +14,7 @@ import {
   Medal,
   Plus,
   RefreshCw,
+  TrendingUp,
   Trophy,
   Users
 } from "lucide-react";
@@ -21,7 +22,7 @@ import { motion } from "framer-motion";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { AppShell } from "@/components/AppShell";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { CricketBallAnimation } from "@/components/CricketBallAnimation";
+import { EagleBoxVideoHero } from "@/components/animations/EagleBoxVideoHero";
 import { EmptyState } from "@/components/EmptyState";
 import { FixtureCard } from "@/components/FixtureCard";
 import { GlassCard } from "@/components/GlassCard";
@@ -38,6 +39,7 @@ import {
   getActivities,
   getDashboardStats,
   getFixtures,
+  getMatchResults,
   getPointsTable,
   getReports,
   getTeams,
@@ -45,6 +47,19 @@ import {
 } from "@/lib/storage";
 import type { ActivityItem, AlertItem, DashboardStats, Fixture, PointsRow, SmartSummary, Team } from "@/lib/types";
 import { formatDateTime, formatScore, getFixtureTitle, isResultStatus } from "@/lib/utils";
+
+function isSmartSummary(value: unknown): value is SmartSummary {
+  if (!value || typeof value !== "object") return false;
+  const summary = value as SmartSummary;
+  return (
+    (summary.mode === "gemini" || summary.mode === "rule-based") &&
+    typeof summary.summary === "string" &&
+    Array.isArray(summary.insights) &&
+    Array.isArray(summary.recommendedActions) &&
+    Array.isArray(summary.risks) &&
+    typeof summary.generatedAt === "string"
+  );
+}
 
 export default function DashboardPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -60,30 +75,62 @@ export default function DashboardPage() {
     completedMatches: 0,
     pendingResults: 0,
     leaderTeamName: "No leader yet",
+    bestNrr: "N/A",
     reportsGenerated: 0,
-    alertsCount: 0
+    alertsCount: 0,
+    databaseStatus: "Local demo"
   });
   const [resetOpen, setResetOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [assistantLoading, setAssistantLoading] = useState(false);
   const { showToast } = useToast();
 
-  const loadData = () => {
+  const loadData = async () => {
     const nextTeams = getTeams();
     const nextFixtures = getFixtures();
     const nextPoints = getPointsTable();
     const nextReports = getReports();
+    const nextResults = getMatchResults();
+    const nextAlerts = generateAlerts(nextTeams, nextFixtures, nextReports);
+    const localSummary = generateSmartSummary(nextTeams, nextFixtures, nextPoints, nextReports);
     setTeams(nextTeams);
     setFixtures(nextFixtures);
     setPointsTable(nextPoints);
     setActivities(getActivities());
-    setAlerts(generateAlerts(nextTeams, nextFixtures, nextReports));
-    setSummary(generateSmartSummary(nextTeams, nextFixtures, nextPoints, nextReports));
+    setAlerts(nextAlerts);
+    setSummary(localSummary);
     setStats(getDashboardStats());
+    setLoading(false);
+
+    setAssistantLoading(true);
+    try {
+      const response = await fetch("/api/smart-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          teams: nextTeams,
+          fixtures: nextFixtures,
+          results: nextResults,
+          pointsTable: nextPoints,
+          alerts: nextAlerts,
+          reports: nextReports,
+          localSummary
+        })
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      if (isSmartSummary(data)) {
+        setSummary(data);
+      }
+    } catch {
+      setSummary(localSummary);
+    } finally {
+      setAssistantLoading(false);
+    }
   };
 
   useEffect(() => {
-    loadData();
-    setLoading(false);
+    void loadData();
   }, []);
 
   const upcomingFixtures = useMemo(
@@ -107,7 +154,7 @@ export default function DashboardPage() {
   const handleReset = () => {
     resetAllData();
     setResetOpen(false);
-    loadData();
+    void loadData();
     showToast({
       type: "success",
       title: "Demo data reset",
@@ -145,7 +192,10 @@ export default function DashboardPage() {
                 <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 md:text-base">
                   Manage the full cricket operations loop: teams, fixtures, result entry, automatic standings, workflow transitions, reports, alerts, and rule-based AI recommendations.
                 </p>
-                <div className="mt-6 flex flex-wrap gap-3">
+                <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-amber-200">
+                  Quick Actions
+                </p>
+                <div className="mt-3 flex flex-wrap gap-3">
                   <Link href="/teams" className="premium-button flex items-center gap-2 px-4 py-3 text-sm">
                     <Plus className="h-4 w-4" />
                     Add Team
@@ -158,29 +208,43 @@ export default function DashboardPage() {
                     <RefreshCw className="h-4 w-4" />
                     Workflow
                   </Link>
+                  <Link href="/results" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
+                    <Trophy className="h-4 w-4" />
+                    Enter Result
+                  </Link>
+                  <Link href="/reports" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
+                    <BarChart3 className="h-4 w-4" />
+                    Generate Report
+                  </Link>
+                  <button type="button" onClick={() => setResetOpen(true)} className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
+                    <DatabaseZap className="h-4 w-4" />
+                    Reset Demo Data
+                  </button>
                 </div>
               </motion.div>
-              <CricketBallAnimation />
+              <EagleBoxVideoHero />
             </div>
           </section>
 
           <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Total Teams" value={stats.totalTeams} icon={<Users className="h-6 w-6" />} accent="emerald" />
-            <StatCard label="Total Fixtures" value={stats.totalFixtures} icon={<CalendarDays className="h-6 w-6" />} accent="cyan" />
+            <StatCard label="Total Fixtures" value={stats.totalFixtures} icon={<CalendarDays className="h-6 w-6" />} accent="emerald" />
             <StatCard label="Completed Matches" value={stats.completedMatches} icon={<Trophy className="h-6 w-6" />} accent="gold" />
-            <StatCard label="Upcoming Matches" value={stats.upcomingMatches} icon={<ListPlus className="h-6 w-6" />} accent="cyan" />
+            <StatCard label="Upcoming Matches" value={stats.upcomingMatches} icon={<ListPlus className="h-6 w-6" />} accent="emerald" />
             <StatCard label="Pending Results" value={stats.pendingResults} icon={<Clock3 className="h-6 w-6" />} accent="red" />
             <StatCard label="Points Table Leader" value={stats.leaderTeamName} icon={<Medal className="h-6 w-6" />} accent="gold" />
+            <StatCard label="Best NRR" value={stats.bestNrr} icon={<TrendingUp className="h-6 w-6" />} accent="emerald" />
             <StatCard label="Reports Generated" value={stats.reportsGenerated} icon={<FileText className="h-6 w-6" />} accent="emerald" />
             <StatCard label="Alerts / Reminders" value={stats.alertsCount} icon={<AlertTriangle className="h-6 w-6" />} accent="red" />
+            <StatCard label="Database Status" value={stats.databaseStatus} icon={<DatabaseZap className="h-6 w-6" />} accent="gold" />
           </section>
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            {summary ? <SmartAssistantPanel summary={summary} onRefresh={loadData} /> : null}
-            <GlassCard className="p-5" hover={false}>
+            <SmartAssistantPanel summary={summary} loading={assistantLoading} onRefresh={() => void loadData()} />
+            <GlassCard className="min-w-0 p-5" hover={false}>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-xl font-black text-white">Alerts & Reminders</h2>
-                <Link href="/workflow" className="text-sm font-bold text-cyan-200 hover:text-cyan-100">
+                <Link href="/workflow" className="text-sm font-bold text-emerald-200 hover:text-emerald-100">
                   Resolve
                 </Link>
               </div>
@@ -189,10 +253,10 @@ export default function DashboardPage() {
           </section>
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
-            <GlassCard className="p-5" hover={false}>
+            <GlassCard className="min-w-0 p-5" hover={false}>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-xl font-black text-white">Upcoming Fixtures</h2>
-                <Link href="/fixtures" className="text-sm font-bold text-cyan-200 hover:text-cyan-100">
+                <Link href="/fixtures" className="text-sm font-bold text-emerald-200 hover:text-emerald-100">
                   View all
                 </Link>
               </div>
@@ -210,7 +274,7 @@ export default function DashboardPage() {
             <GlassCard className="p-5" hover={false}>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-xl font-black text-white">Latest Completed Matches</h2>
-                <Link href="/results" className="text-sm font-bold text-cyan-200 hover:text-cyan-100">
+                <Link href="/results" className="text-sm font-bold text-emerald-200 hover:text-emerald-100">
                   Result center
                 </Link>
               </div>
@@ -240,10 +304,10 @@ export default function DashboardPage() {
           </section>
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-            <GlassCard className="p-5" hover={false}>
+            <GlassCard className="min-w-0 p-5" hover={false}>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-xl font-black text-white">Mini Points Table</h2>
-                <Link href="/points-table" className="text-sm font-bold text-cyan-200 hover:text-cyan-100">
+                <Link href="/points-table" className="text-sm font-bold text-emerald-200 hover:text-emerald-100">
                   Full table
                 </Link>
               </div>
@@ -254,7 +318,7 @@ export default function DashboardPage() {
               )}
             </GlassCard>
 
-            <GlassCard className="p-5" hover={false}>
+            <GlassCard className="min-w-0 p-5" hover={false}>
               <h2 className="mb-4 text-xl font-black text-white">Recent Activity</h2>
               {activities.length > 0 ? (
                 <div className="grid gap-3">

@@ -10,7 +10,7 @@ import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { PageHeader } from "@/components/PageHeader";
 import { PointsTableView } from "@/components/PointsTableView";
 import { useToast } from "@/components/ToastProvider";
-import { getFixtureResult, isCompletedFixture } from "@/lib/points";
+import { ballsToOversText, getFixtureResult, isCompletedFixture } from "@/lib/points";
 import {
   addReportLog,
   generateAlerts,
@@ -25,6 +25,7 @@ import {
   escapeCsv,
   formatDate,
   formatDateTime,
+  formatNrr,
   formatScore,
   formatTime,
   getFixtureTitle,
@@ -82,7 +83,7 @@ async function copyText(text: string): Promise<void> {
 
 function pointsCsv(pointsTable: PointsRow[], teams: Team[]): string {
   const rows = [
-    ["Position", "Team", "Played", "Won", "Lost", "Tied", "No Result", "Points", "Runs For", "Overs Faced", "Runs Against", "Overs Bowled", "NRR", "Last 5"],
+    ["Position", "Team", "Played", "Won", "Lost", "Tied", "No Result", "Points", "Runs For", "Balls Faced", "Overs Faced", "Runs Against", "Balls Bowled", "Overs Bowled", "NRR", "Last 5"],
     ...pointsTable.map((row, index) => [
       index + 1,
       getTeamName(teams, row.teamId),
@@ -93,10 +94,12 @@ function pointsCsv(pointsTable: PointsRow[], teams: Team[]): string {
       row.noResult,
       row.points,
       row.runsFor,
-      row.oversFaced.toFixed(2),
+      row.ballsFaced,
+      ballsToOversText(row.ballsFaced),
       row.runsAgainst,
-      row.oversBowled.toFixed(2),
-      row.netRunRate.toFixed(3),
+      row.ballsBowled,
+      ballsToOversText(row.ballsBowled),
+      formatNrr(row.netRunRate),
       row.lastFive.join(" ")
     ])
   ];
@@ -125,12 +128,36 @@ function fixturesCsv(fixtures: Fixture[], teams: Team[]): string {
   return rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
 }
 
+function resultsCsv(fixtures: Fixture[], teams: Team[]): string {
+  const rows = [
+    ["Match ID", "Team A", "Team A Score", "Team A Overs", "Team B", "Team B Score", "Team B Overs", "Result Type", "Winner", "Player of Match", "Notes"],
+    ...fixtures.filter(isCompletedFixture).map((fixture) => {
+      const result = getFixtureResult(fixture);
+      return [
+        fixture.matchId,
+        getTeamName(teams, fixture.teamAId),
+        result ? formatScore(result.teamARuns, result.teamAWickets) : "",
+        result?.teamAOvers ?? "",
+        getTeamName(teams, fixture.teamBId),
+        result ? formatScore(result.teamBRuns, result.teamBWickets) : "",
+        result?.teamBOvers ?? "",
+        result?.resultType ?? "",
+        result?.winnerTeamId ? getTeamName(teams, result.winnerTeamId) : result?.resultType ?? "",
+        result?.playerOfMatch ?? "",
+        result?.notes ?? ""
+      ];
+    })
+  ];
+  return rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
+}
+
 export default function ReportsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [pointsTable, setPointsTable] = useState<PointsRow[]>([]);
   const [reports, setReports] = useState<ReportLog[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [reportGeneratedAt, setReportGeneratedAt] = useState("Preparing report timestamp");
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
@@ -148,6 +175,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     loadData();
+    setReportGeneratedAt(new Date().toLocaleString("en-IN"));
     setLoading(false);
   }, []);
 
@@ -176,6 +204,12 @@ export default function ReportsPage() {
     downloadTextFile("eagle-box-fixtures.csv", fixturesCsv(fixtures, teams));
     logReport("Fixtures Report", "Exported fixtures CSV", "CSV export generated for fixtures and results.");
     showToast({ type: "success", title: "CSV exported", description: "Fixtures CSV is ready." });
+  };
+
+  const handleResultsCsv = () => {
+    downloadTextFile("eagle-box-results.csv", resultsCsv(fixtures, teams));
+    logReport("Results Report", "Exported results CSV", "CSV export generated for completed match scorecards.");
+    showToast({ type: "success", title: "CSV exported", description: "Results CSV is ready." });
   };
 
   const handleCopy = async () => {
@@ -220,6 +254,10 @@ export default function ReportsPage() {
                     <Download className="h-4 w-4" />
                     Export Fixtures CSV
                   </button>
+                  <button type="button" onClick={handleResultsCsv} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
+                    <Download className="h-4 w-4" />
+                    Export Results CSV
+                  </button>
                   <button type="button" onClick={handleCopy} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
                     <ClipboardCopy className="h-4 w-4" />
                     Copy Summary
@@ -249,7 +287,7 @@ export default function ReportsPage() {
                   {reports.slice(0, 8).map((report) => (
                     <div key={report.id} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
                       <p className="font-black text-white">{report.title}</p>
-                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">{report.type}</p>
+                      <p className="mt-1 text-xs font-bold uppercase tracking-[0.16em] text-emerald-200">{report.type}</p>
                       <p className="mt-2 text-sm text-slate-300">{report.summary}</p>
                       <p className="mt-2 text-xs text-slate-500">{formatDateTime(report.generatedAt)}</p>
                     </div>
@@ -263,12 +301,12 @@ export default function ReportsPage() {
 
           <GlassCard className="report-content p-5 md:p-7" hover={false}>
             <div className="mb-6 border-b border-white/10 pb-5">
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-200">
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-200">
                 Eagle Box Cricket
               </p>
               <h1 className="mt-2 text-3xl font-black text-white">Tournament Report</h1>
               <p className="mt-2 text-sm text-slate-300">
-                Generated from local dashboard data on {new Date().toLocaleString("en-IN")}.
+                Generated from dashboard data on {reportGeneratedAt}.
               </p>
             </div>
 

@@ -3,35 +3,83 @@ import { getTeamName } from "./utils";
 
 const completedStatuses = new Set(["Completed", "Points Updated", "Report Generated"]);
 
-export function parseCricketOversToDecimal(overs: number | string): number {
+// Cricket overs helpers.
+
+/**
+ * Parse a cricket overs string like "18.4" into a decimal number.
+ * 18.4 means 18 overs and 4 balls = 18 + 4/6 = 18.667
+ * The decimal part must be 0-5 (6 balls = 1 over).
+ */
+export function isValidCricketOvers(overs: string | number | undefined | null): boolean {
+  if (overs === undefined || overs === null) return false;
   const rawValue = String(overs).trim();
-
-  if (!rawValue || !/^\d+(\.\d+)?$/.test(rawValue)) {
-    throw new Error("Overs must be a positive cricket overs value.");
-  }
-
-  const [wholePart, ballsPart = "0"] = rawValue.split(".");
-  const fullOvers = Number(wholePart);
-  const balls = Number(ballsPart);
-
-  if (!Number.isInteger(fullOvers) || !Number.isInteger(balls)) {
-    throw new Error("Overs must use whole overs and balls.");
-  }
-
-  if (balls < 0 || balls > 5) {
-    throw new Error("Cricket overs can only have 0 to 5 balls after the decimal.");
-  }
-
-  return fullOvers + balls / 6;
+  if (!rawValue) return false;
+  return /^\d+(\.[0-5])?$/.test(rawValue);
 }
 
-function safeOvers(overs?: string): number {
-  if (!overs) {
+export function parseCricketOversToDecimal(overs: number | string): number {
+  return parseOversToBalls(overs) / 6;
+}
+
+/**
+ * Convert a cricket overs string like "18.4" to total balls.
+ * 18.4 -> 18 * 6 + 4 = 112 balls
+ */
+export function parseOversToBalls(overs: string | number | undefined | null): number {
+  if (overs === undefined || overs === null || String(overs).trim() === "") {
     return 0;
   }
 
+  if (!isValidCricketOvers(overs)) {
+    throw new Error("Cricket overs must use 0 to 5 balls after the decimal (for example 12.3 is valid, 12.6 is not).");
+  }
+
+  const [wholePart, ballsPart = "0"] = String(overs).trim().split(".");
+  return Number(wholePart) * 6 + Number(ballsPart);
+}
+
+/**
+ * Convert total balls to cricket overs text.
+ * 112 balls -> "18.4"
+ * 120 balls -> "20.0"
+ * 0 balls -> "0.0"
+ */
+export function ballsToOversText(balls: number): string {
+  if (balls <= 0) return "0.0";
+  const fullOvers = Math.floor(balls / 6);
+  const remainingBalls = balls % 6;
+  return `${fullOvers}.${remainingBalls}`;
+}
+
+/**
+ * Calculate run rate from runs and balls.
+ * run rate = runs / (balls / 6)
+ */
+export function calculateRunRate(runs: number, balls: number): number {
+  if (balls <= 0) return 0;
+  return runs / (balls / 6);
+}
+
+/**
+ * Calculate Net Run Rate from a PointsRow using balls for accuracy.
+ * NRR = (runsFor / oversFaced) - (runsAgainst / oversBowled)
+ *     = (runsFor / (ballsFaced/6)) - (runsAgainst / (ballsBowled/6))
+ */
+export function calculateNRR(row: PointsRow): number {
+  if (row.ballsFaced <= 0 || row.ballsBowled <= 0) {
+    return 0;
+  }
+
+  const scoringRate = row.runsFor / (row.ballsFaced / 6);
+  const concededRate = row.runsAgainst / (row.ballsBowled / 6);
+  return Number((scoringRate - concededRate).toFixed(3));
+}
+
+// Internal helpers.
+
+function safeOversToBalls(overs?: string): number {
   try {
-    return parseCricketOversToDecimal(overs);
+    return parseOversToBalls(overs);
   } catch {
     return 0;
   }
@@ -47,24 +95,16 @@ function emptyPointsRow(teamId: string, lastUpdated: string): PointsRow {
     noResult: 0,
     points: 0,
     runsFor: 0,
-    oversFaced: 0,
+    ballsFaced: 0,
     runsAgainst: 0,
-    oversBowled: 0,
+    ballsBowled: 0,
     netRunRate: 0,
     lastFive: [],
     lastUpdated
   };
 }
 
-function calculateNetRunRate(row: PointsRow): number {
-  if (row.oversFaced <= 0 || row.oversBowled <= 0) {
-    return 0;
-  }
-
-  const scoringRate = row.runsFor / row.oversFaced;
-  const concededRate = row.runsAgainst / row.oversBowled;
-  return Number((scoringRate - concededRate).toFixed(3));
-}
+// Fixture result extraction.
 
 export function getFixtureResult(fixture: Fixture): MatchResult | undefined {
   if (fixture.result) {
@@ -123,6 +163,8 @@ export function isCompletedFixture(fixture: Fixture): boolean {
   return completedStatuses.has(fixture.status) && hasResult(fixture);
 }
 
+// Points application.
+
 function pushForm(row: PointsRow, form: FormResult): void {
   row.lastFive = [form, ...row.lastFive].slice(0, 5);
 }
@@ -137,18 +179,18 @@ function applyOutcome(
   teamBRow.played += 1;
 
   if (result.resultType !== "No result") {
-    const teamAOvers = safeOvers(result.teamAOvers);
-    const teamBOvers = safeOvers(result.teamBOvers);
+    const teamABalls = safeOversToBalls(result.teamAOvers);
+    const teamBBalls = safeOversToBalls(result.teamBOvers);
 
     teamARow.runsFor += result.teamARuns;
     teamARow.runsAgainst += result.teamBRuns;
     teamBRow.runsFor += result.teamBRuns;
     teamBRow.runsAgainst += result.teamARuns;
 
-    teamARow.oversFaced += teamAOvers;
-    teamARow.oversBowled += teamBOvers;
-    teamBRow.oversFaced += teamBOvers;
-    teamBRow.oversBowled += teamAOvers;
+    teamARow.ballsFaced += teamABalls;
+    teamARow.ballsBowled += teamBBalls;
+    teamBRow.ballsFaced += teamBBalls;
+    teamBRow.ballsBowled += teamABalls;
   }
 
   if (result.resultType === "Tie") {
@@ -199,6 +241,8 @@ function applyOutcome(
   pushForm(loserRow, "L");
 }
 
+// Full recalculation.
+
 export function recalculatePointsTable(teams: Team[], fixtures: Fixture[]): PointsRow[] {
   const lastUpdated = new Date().toISOString();
   const rowsByTeam = new Map<string, PointsRow>(
@@ -225,9 +269,7 @@ export function recalculatePointsTable(teams: Team[], fixtures: Fixture[]): Poin
   return Array.from(rowsByTeam.values())
     .map((row) => ({
       ...row,
-      oversFaced: Number(row.oversFaced.toFixed(3)),
-      oversBowled: Number(row.oversBowled.toFixed(3)),
-      netRunRate: calculateNetRunRate(row)
+      netRunRate: calculateNRR(row)
     }))
     .sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;

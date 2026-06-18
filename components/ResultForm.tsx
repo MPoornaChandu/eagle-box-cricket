@@ -89,6 +89,29 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
     setErrors({});
   }, [fixture]);
 
+  // Auto-select winner / suggest tie based on scores
+  useEffect(() => {
+    if (form.resultType === "No result" || form.resultType === "Walkover") return;
+    const aScore = Number(form.teamAScore);
+    const bScore = Number(form.teamBScore);
+    if (!Number.isFinite(aScore) || !Number.isFinite(bScore) || form.teamAScore === "" || form.teamBScore === "") return;
+
+    if (aScore === bScore && form.resultType !== "Tie") {
+      setForm((current) => ({ ...current, resultType: "Tie", winnerTeamId: "" }));
+    } else if (aScore !== bScore && form.resultType === "Tie") {
+      setForm((current) => ({ ...current, resultType: "Normal win" }));
+    }
+
+    if (aScore > bScore) {
+      setForm((current) => ({ ...current, winnerTeamId: fixture.teamAId }));
+    } else if (bScore > aScore) {
+      setForm((current) => ({ ...current, winnerTeamId: fixture.teamBId }));
+    } else {
+      setForm((current) => ({ ...current, winnerTeamId: "" }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.teamAScore, form.teamBScore]);
+
   const preview = useMemo(() => {
     if (form.resultType === "No result") return "No result";
     if (form.resultType === "Walkover") {
@@ -224,7 +247,7 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
     <form onSubmit={handleSubmit} className="glass-panel rounded-lg p-5">
       <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-200">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-200">
             Result entry
           </p>
           <h2 className="mt-1 text-2xl font-black text-white">
@@ -281,6 +304,7 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
               Overs
               <input data-testid="team-a-overs" type="text" inputMode="decimal" placeholder="10.5" value={form.teamAOvers} onChange={(event) => handleChange("teamAOvers", event.target.value)} />
               {errors.teamAOvers ? <span className="text-xs text-red-200">{errors.teamAOvers}</span> : null}
+              <span className="text-[0.7rem] text-slate-400">Use cricket overs format: 12.3 = 12 overs, 3 balls</span>
             </label>
           </div>
         </div>
@@ -302,6 +326,7 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
               Overs
               <input data-testid="team-b-overs" type="text" inputMode="decimal" placeholder="9.4" value={form.teamBOvers} onChange={(event) => handleChange("teamBOvers", event.target.value)} />
               {errors.teamBOvers ? <span className="text-xs text-red-200">{errors.teamBOvers}</span> : null}
+              <span className="text-[0.7rem] text-slate-400">Use cricket overs format: 12.3 = 12 overs, 3 balls</span>
             </label>
           </div>
         </div>

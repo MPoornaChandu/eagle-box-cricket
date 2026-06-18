@@ -171,7 +171,7 @@ export default function WorkflowPage() {
                           <p className="mt-2 text-xs text-slate-400">{formatDate(fixture.date)} at {formatTime(fixture.time)}</p>
                           <p className="mt-1 text-xs text-slate-400">{fixture.venue}</p>
                           {result ? (
-                            <p className="mt-3 text-xs font-semibold text-cyan-100">
+                            <p className="mt-3 text-xs font-semibold text-emerald-100">
                               {formatScore(result.teamARuns, result.teamAWickets)} vs {formatScore(result.teamBRuns, result.teamBWickets)} - {result.resultType}
                             </p>
                           ) : null}

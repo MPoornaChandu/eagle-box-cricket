@@ -5,14 +5,17 @@ import {
   hasResult,
   isCompletedFixture,
   recalculatePointsTable
-} from "./points";
-import { getDemoActivities, getDemoFixtures, getDemoReports, getDemoTeams } from "./seed";
+} from "../points";
+import { getDemoActivities, getDemoFixtures, getDemoReports, getDemoTeams } from "../seed";
+import { getDataSourceStatus as readDataSourceStatus } from "../supabase/client";
+import { resetSupabaseDemoData, syncTournamentToSupabase } from "./supabaseStore";
 import type {
   ActivityItem,
   AlertItem,
   DashboardStats,
   Fixture,
   FixtureInput,
+  MatchResult,
   MatchType,
   PointsRow,
   ReportLog,
@@ -23,10 +26,11 @@ import type {
   TeamInput,
   TeamStatus,
   WorkflowStatus
-} from "./types";
+} from "../types";
 import {
   formatDate,
   formatDateTime,
+  formatNrr,
   formatScore,
   formatTime,
   getFixtureTitle,
@@ -34,7 +38,7 @@ import {
   getTeamName,
   getTodayKey,
   isResultStatus
-} from "./utils";
+} from "../utils";
 
 const TEAMS_KEY = "ebc_teams";
 const FIXTURES_KEY = "ebc_fixtures";
@@ -42,6 +46,7 @@ const POINTS_KEY = "ebc_points_table";
 const REPORTS_KEY = "ebc_report_logs";
 const ACTIVITIES_KEY = "ebc_activity_logs";
 const LOGIN_KEY = "isLoggedIn";
+const DEMO_SEEDED_KEY = "ebc_demo_seeded";
 
 const workflowStatuses: WorkflowStatus[] = [
   "Draft",
@@ -212,6 +217,21 @@ function saveActivity(activity: ActivityItem): void {
   writeJson(ACTIVITIES_KEY, [activity, ...activities].slice(0, 40));
 }
 
+function queueSupabaseSync(
+  teams: Team[] = getTeams(),
+  fixtures: Fixture[] = getFixtures(),
+  reports: ReportLog[] = getReports(),
+  activities: ActivityItem[] = getActivities()
+): void {
+  void syncTournamentToSupabase({ teams, fixtures, reports, activities }).catch(() => {
+    // Local demo storage remains the fallback if Supabase is unavailable.
+  });
+}
+
+export function getDataSourceStatus() {
+  return readDataSourceStatus();
+}
+
 export function addActivity(message: string, type: ActivityItem["type"] = "system"): ActivityItem {
   const activity: ActivityItem = {
     id: createId("activity"),
@@ -220,6 +240,7 @@ export function addActivity(message: string, type: ActivityItem["type"] = "syste
     type
   };
   saveActivity(activity);
+  queueSupabaseSync();
   return activity;
 }
 
@@ -444,11 +465,7 @@ export function submitFixtureResult(fixtureId: string, resultData: ResultInput):
 export function getPointsTable(): PointsRow[] {
   const teams = getTeams();
   const fixtures = getFixtures();
-  const stored = readJson<PointsRow[]>(POINTS_KEY, []);
-  if (stored.length !== teams.length) {
-    return recalculateAndSavePointsTable(teams, fixtures);
-  }
-  return stored;
+  return recalculateAndSavePointsTable(teams, fixtures);
 }
 
 export function savePointsTable(pointsTable: PointsRow[]): void {
@@ -489,6 +506,7 @@ export function getDashboardStats(): DashboardStats {
   const pointsTable = getPointsTable();
   const reports = getReports();
   const alerts = generateAlerts(teams, fixtures, reports);
+  const bestNrrRow = [...pointsTable].filter((r) => r.played > 0).sort((a, b) => b.netRunRate - a.netRunRate)[0];
 
   return {
     totalTeams: teams.length,
@@ -502,12 +520,14 @@ export function getDashboardStats(): DashboardStats {
         fixture.date <= getTodayKey()
     ).length,
     leaderTeamName: getLeaderName(teams, pointsTable),
+    bestNrr: bestNrrRow ? `${getTeamName(teams, bestNrrRow.teamId)} (${formatNrr(bestNrrRow.netRunRate)})` : "N/A",
     reportsGenerated: reports.length,
-    alertsCount: alerts.length
+    alertsCount: alerts.length,
+    databaseStatus: getDataSourceStatus().label
   };
 }
 
-export function seedDemoData(): {
+export function seedDemoData(syncSupabase = true): {
   teams: Team[];
   fixtures: Fixture[];
   pointsTable: PointsRow[];
@@ -525,8 +545,50 @@ export function seedDemoData(): {
   savePointsTable(pointsTable);
   saveReports(reports);
   saveActivities(activities);
+  if (canUseStorage()) {
+    window.localStorage.setItem(DEMO_SEEDED_KEY, "true");
+  }
+  if (syncSupabase) {
+    queueSupabaseSync(teams, fixtures, reports, activities);
+  }
 
   return { teams, fixtures, pointsTable, reports, activities };
+}
+
+export function ensureDemoData(): {
+  teams: Team[];
+  fixtures: Fixture[];
+  pointsTable: PointsRow[];
+  reports: ReportLog[];
+  activities: ActivityItem[];
+} {
+  if (!canUseStorage()) {
+    return {
+      teams: [],
+      fixtures: [],
+      pointsTable: [],
+      reports: [],
+      activities: []
+    };
+  }
+
+  const hasTournamentData = [TEAMS_KEY, FIXTURES_KEY, REPORTS_KEY, ACTIVITIES_KEY].some((key) =>
+    Boolean(window.localStorage.getItem(key))
+  );
+
+  if (!hasTournamentData) {
+    return seedDemoData();
+  }
+
+  const teams = getTeams();
+  const fixtures = getFixtures();
+  return {
+    teams,
+    fixtures,
+    pointsTable: getPointsTable(),
+    reports: getReports(),
+    activities: getActivities()
+  };
 }
 
 export function resetAllData(): {
@@ -542,10 +604,26 @@ export function resetAllData(): {
     window.localStorage.removeItem(POINTS_KEY);
     window.localStorage.removeItem(REPORTS_KEY);
     window.localStorage.removeItem(ACTIVITIES_KEY);
+    window.localStorage.removeItem(DEMO_SEEDED_KEY);
   }
+  const seededData = seedDemoData(false);
+  void resetSupabaseDemoData()
+    .then(() =>
+      syncTournamentToSupabase({
+        teams: seededData.teams,
+        fixtures: seededData.fixtures,
+        reports: seededData.reports,
+        activities: seededData.activities
+      })
+    )
+    .catch(() => {
+      // Local fallback still resets even if Supabase is unavailable.
+    });
 
-  return seedDemoData();
+  return seededData;
 }
+
+export const resetDemoData = resetAllData;
 
 export function generateAlerts(
   teams: Team[] = getTeams(),
@@ -648,6 +726,7 @@ export function generateSmartSummary(
   const leader = pointsTable[0];
   const bestNrr = [...pointsTable].sort((a, b) => b.netRunRate - a.netRunRate)[0];
   const upcomingCount = fixtures.filter((fixture) => !isResultStatus(fixture.status)).length;
+  const completedCount = fixtures.filter(isCompletedFixture).length;
   const pendingResults = fixtures.filter(
     (fixture) =>
       (fixture.status === "Scheduled" || fixture.status === "Live") &&
@@ -657,34 +736,65 @@ export function generateSmartSummary(
   const completedNeedsReport = fixtures.filter(
     (fixture) => isCompletedFixture(fixture) && fixture.status !== "Report Generated"
   ).length;
+  const readyReports = completedNeedsReport + Math.max(0, completedCount - reports.length);
+  const leaderName = leader && leader.played > 0 ? getTeamName(teams, leader.teamId) : "No leader yet";
+  const bestNrrName = bestNrr && bestNrr.played > 0 ? getTeamName(teams, bestNrr.teamId) : "No NRR leader yet";
+  const reportText =
+    completedNeedsReport > 0
+      ? `${completedNeedsReport} completed fixture${completedNeedsReport === 1 ? "" : "s"} still need report generation`
+      : reports.length > 0
+        ? `${reports.length} report${reports.length === 1 ? "" : "s"} are already generated`
+        : "reports are ready once matches are completed";
 
   const insights = [
-    `${upcomingCount} upcoming fixtures are active in the workflow.`,
-    pendingResults > 0
-      ? `${pendingResults} result${pendingResults > 1 ? "s are" : " is"} pending for scheduled/live matches.`
-      : "No due match results are currently pending.",
     leader && leader.played > 0
-      ? `${getTeamName(teams, leader.teamId)} is leading with ${leader.points} points.`
-      : "No table leader yet because completed results are limited.",
+      ? `Current leader: ${leaderName} with ${leader.points} points.`
+      : `${teams.length} team${teams.length === 1 ? "" : "s"} are configured; complete matches to establish a table leader.`,
+    `${fixtures.length} fixture${fixtures.length === 1 ? "" : "s"} are configured, with ${upcomingCount} upcoming and ${completedCount} completed.`,
+    pendingResults > 0
+      ? `${pendingResults} fixture${pendingResults === 1 ? " needs" : "s need"} result entry.`
+      : "No due match results are currently pending.",
     bestNrr && bestNrr.played > 0
-      ? `${getTeamName(teams, bestNrr.teamId)} has the best NRR at ${bestNrr.netRunRate.toFixed(3)}.`
-      : "NRR will become meaningful after scorecards include overs.",
+      ? `${bestNrrName} have the best NRR at ${formatNrr(bestNrr.netRunRate)}.`
+      : "NRR will show as 0.000 until completed scorecards include valid overs.",
     completedNeedsReport > 0
-      ? `${completedNeedsReport} completed match${completedNeedsReport > 1 ? "es need" : " needs"} report generation.`
-      : "All completed matches have reached report-ready status."
+      ? `${completedNeedsReport} completed match${completedNeedsReport === 1 ? " needs" : "es need"} report generation.`
+      : "All completed matches are clear for the current report workflow."
   ];
 
-  const recommendedAction =
+  const recommendedActions = [
     pendingResults > 0
-      ? "Update pending match results before generating final reports."
-      : alerts.length > 0
-        ? "Clear workflow alerts, then export the points and fixtures reports."
-        : "Generate the tournament summary report for presentation.";
+      ? "Update pending match results."
+      : "Review the next scheduled fixture before match day.",
+    completedNeedsReport > 0
+      ? "Generate reports for completed fixtures."
+      : "Generate the latest tournament summary report.",
+    alerts.length > 0
+      ? "Review workflow alerts before the next demo."
+      : "Export the points table CSV for evaluation backup."
+  ];
+
+  const risks = [
+    alerts.length > 0
+      ? `${alerts.length} alert${alerts.length === 1 ? " needs" : "s need"} attention.`
+      : "No critical workflow alerts are active.",
+    pendingResults > 0
+      ? "Pending results can delay points table updates."
+      : "Points table is not blocked by due result entry.",
+    completedNeedsReport > 0
+      ? "Completed matches without reports can leave the workflow unfinished."
+      : "Report workflow is clear for completed matches."
+  ];
 
   return {
-    headline: `${upcomingCount} fixtures upcoming, ${pendingResults} pending result${pendingResults === 1 ? "" : "s"}, ${getLeaderName(teams, pointsTable)} leading.`,
-    insights,
-    recommendedAction,
+    mode: "rule-based",
+    summary:
+      leader && leader.played > 0
+        ? `${leaderName} lead the tournament with ${leader.points} points. ${upcomingCount} fixture${upcomingCount === 1 ? " is" : "s are"} upcoming, ${completedCount} match${completedCount === 1 ? " is" : "es are"} completed, and ${reportText}.`
+        : `${teams.length} team${teams.length === 1 ? "" : "s"} and ${fixtures.length} fixture${fixtures.length === 1 ? "" : "s"} are ready. Complete match results to produce the first tournament leader and NRR trend.`,
+    insights: insights.slice(0, 5),
+    recommendedActions,
+    risks,
     generatedAt: new Date().toISOString()
   };
 }
@@ -770,7 +880,7 @@ export function logout(): void {
   window.localStorage.removeItem(LOGIN_KEY);
 }
 
-// TODO: Replace these localStorage adapters with Supabase/Firebase repositories when backend credentials are provided.
+// Supabase sync is enabled when NEXT_PUBLIC_SUPABASE_URL plus a publishable or anon key are configured.
 export function describeFixtureResult(fixture: Fixture, teams: Team[]): string {
   const result = getFixtureResult(fixture);
   if (!result) return "Result pending";
@@ -779,3 +889,20 @@ export function describeFixtureResult(fixture: Fixture, teams: Team[]): string {
   const winner = result.winnerTeamId ? getTeamName(teams, result.winnerTeamId) : "Tie";
   return `${score} - ${winner}`;
 }
+
+export function getMatchResults(): Array<MatchResult & { fixtureId: string }> {
+  return getFixtures()
+    .map((fixture) => {
+      const result = getFixtureResult(fixture);
+      return result ? { ...result, fixtureId: fixture.id } : null;
+    })
+    .filter((result): result is MatchResult & { fixtureId: string } => Boolean(result));
+}
+
+export const createTeam = addTeam;
+export const createFixture = addFixture;
+export const saveMatchResult = submitFixtureResult;
+export const createReport = addReportLog;
+export const getActivityLogs = getActivities;
+export const addActivityLog = addActivity;
+export const seedDemoDataIfEmpty = ensureDemoData;

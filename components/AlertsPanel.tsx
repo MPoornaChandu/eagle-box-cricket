@@ -23,7 +23,7 @@ export function AlertsPanel({ alerts, compact = false }: { alerts: AlertItem[]; 
               "rounded-lg border p-4",
               alert.severity === "critical" && "border-red-300/30 bg-red-400/12",
               alert.severity === "warning" && "border-amber-300/30 bg-amber-400/12",
-              alert.severity === "info" && "border-cyan-300/25 bg-cyan-400/10"
+              alert.severity === "info" && "border-emerald-300/25 bg-emerald-400/10"
             )}
           >
             <div className="flex items-start gap-3">

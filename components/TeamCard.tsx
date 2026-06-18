@@ -29,7 +29,7 @@ export function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="break-words text-xl font-black text-white">{team.name}</h2>
-            <span className="rounded-full border border-cyan-300/24 bg-cyan-300/10 px-2 py-1 text-xs font-black text-cyan-100">
+            <span className="rounded-full border border-amber-300/24 bg-amber-300/10 px-2 py-1 text-xs font-black text-amber-100">
               {team.shortName}
             </span>
             <span
@@ -52,7 +52,7 @@ export function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
               {team.coach}
             </p>
             <p className="flex items-center gap-2">
-              <Phone className="h-4 w-4 text-cyan-200" />
+              <Phone className="h-4 w-4 text-emerald-200" />
               {team.contact || "Contact optional"}
             </p>
             <p className="flex items-center gap-2">

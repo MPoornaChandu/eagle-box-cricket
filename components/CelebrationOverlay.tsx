@@ -38,13 +38,13 @@ export function CelebrationOverlay({ message, open, onClose }: CelebrationOverla
             className="relative z-10 text-center"
           >
             <motion.div
-              animate={{ y: [0, -10, 0], textShadow: ["0 0 20px #22d3ee", "0 0 36px #f59e0b", "0 0 20px #22d3ee"] }}
+              animate={{ y: [0, -10, 0], textShadow: ["0 0 20px #22c55e", "0 0 36px #f5c451", "0 0 20px #22c55e"] }}
               transition={{ duration: 1.2, repeat: Infinity }}
               className="text-4xl font-black uppercase text-white md:text-7xl"
             >
               {message}
             </motion.div>
-            <p className="mt-4 text-sm font-bold uppercase tracking-[0.28em] text-cyan-200">
+            <p className="mt-4 text-sm font-bold uppercase tracking-[0.28em] text-emerald-200">
               Eagle Box Cricket
             </p>
           </motion.div>
@@ -75,7 +75,7 @@ export function CelebrationOverlay({ message, open, onClose }: CelebrationOverla
                   scale: [0.4, 1, 0.3]
                 }}
                 transition={{ duration: 1.75, repeat: Infinity, delay: particle * 0.025 }}
-                className="absolute left-1/2 top-1/2 h-2 w-2 rounded-full bg-cyan-200 shadow-glow"
+                className="absolute left-1/2 top-1/2 h-2 w-2 rounded-full bg-amber-200 shadow-glow"
               />
             );
           })}

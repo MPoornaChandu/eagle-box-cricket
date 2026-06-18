@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { LockKeyhole, LogIn, Mail, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { isLoggedIn, login } from "@/lib/storage";
+import { ensureDemoData, isLoggedIn, login } from "@/lib/storage";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useToast } from "@/components/ToastProvider";
 
 export default function LoginPage() {
@@ -48,6 +49,7 @@ export default function LoginPage() {
       title: "Login successful",
       description: "Welcome to Eagle Box Cricket operations."
     });
+    ensureDemoData();
     router.replace("/");
   };
 
@@ -57,7 +59,10 @@ export default function LoginPage() {
 
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden px-4 py-10">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.18),transparent_32rem),radial-gradient(circle_at_bottom_right,rgba(34,197,94,0.18),transparent_28rem)]" />
+      <div className="absolute right-4 top-4 z-10">
+        <ThemeToggle />
+      </div>
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(34,197,94,0.18),transparent_32rem),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.16),transparent_28rem)]" />
       <motion.div
         initial={{ opacity: 0, y: 18, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -68,14 +73,14 @@ export default function LoginPage() {
             <div className="grid h-16 w-16 place-items-center rounded-lg border border-emerald-300/30 bg-emerald-400/14 text-2xl font-black text-emerald-100 shadow-emerald">
               EB
             </div>
-            <p className="mt-8 text-sm font-black uppercase tracking-[0.3em] text-cyan-200">
+            <p className="mt-8 text-sm font-black uppercase tracking-[0.3em] text-emerald-200">
               Eagle Box Cricket
             </p>
             <h1 className="mt-4 max-w-2xl text-4xl font-black leading-tight text-white md:text-6xl">
               Fixture & Points Table Manager
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
-              Premium local demo console for tournament teams, fixtures, results, reports, and
+              Premium database-ready console for tournament teams, fixtures, results, reports, and
               live standings.
             </p>
           </div>
@@ -94,12 +99,12 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="glass-panel rounded-lg p-6 md:p-8">
           <div className="mb-8 flex items-center gap-3">
-            <div className="grid h-12 w-12 place-items-center rounded-lg border border-cyan-300/25 bg-cyan-400/12 text-cyan-100">
+            <div className="grid h-12 w-12 place-items-center rounded-lg border border-emerald-300/25 bg-emerald-400/12 text-emerald-100">
               <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
               <h2 className="text-2xl font-black text-white">Admin Login</h2>
-              <p className="text-sm text-slate-400">Local demo access</p>
+              <p className="text-sm text-slate-400">Demo admin access</p>
             </div>
           </div>
 

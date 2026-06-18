@@ -77,8 +77,8 @@ export default function ResultsPage() {
                         className={cn(
                           "rounded-lg border p-4 text-left transition",
                           active
-                            ? "border-cyan-300/45 bg-cyan-300/12 shadow-glow"
-                            : "border-white/10 bg-white/[0.04] hover:border-cyan-300/25 hover:bg-white/[0.065]"
+                            ? "border-emerald-300/45 bg-emerald-300/12 shadow-glow"
+                            : "border-white/10 bg-white/[0.04] hover:border-emerald-300/25 hover:bg-white/[0.065]"
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -91,7 +91,7 @@ export default function ResultsPage() {
                           {active ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-200" /> : null}
                         </div>
                         <p className="mt-3 flex items-center gap-2 text-sm text-slate-300">
-                          <CalendarClock className="h-4 w-4 text-cyan-200" />
+                          <CalendarClock className="h-4 w-4 text-emerald-200" />
                           {formatDate(fixture.date)} at {formatTime(fixture.time)}
                         </p>
                         <p className="mt-2 flex items-center gap-2 text-sm text-slate-300">
@@ -99,7 +99,7 @@ export default function ResultsPage() {
                           {fixture.venue}
                         </p>
                         {result ? (
-                          <p className="mt-2 text-xs font-semibold text-cyan-100">
+                          <p className="mt-2 text-xs font-semibold text-emerald-100">
                             {formatScore(result.teamARuns, result.teamAWickets)} vs {formatScore(result.teamBRuns, result.teamBWickets)} - {result.resultType}
                           </p>
                         ) : null}

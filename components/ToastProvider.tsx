@@ -63,7 +63,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   toast.type === "success" &&
                     "border-emerald-400/35 bg-emerald-950/[0.72] text-emerald-50",
                   toast.type === "error" && "border-red-400/35 bg-red-950/[0.72] text-red-50",
-                  toast.type === "info" && "border-cyan-400/35 bg-cyan-950/[0.72] text-cyan-50"
+                  toast.type === "info" && "border-emerald-400/35 bg-emerald-950/[0.72] text-emerald-50"
                 )}
               >
                 <Icon className="mt-0.5 h-5 w-5 shrink-0" />

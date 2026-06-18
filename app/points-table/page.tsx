@@ -68,7 +68,7 @@ export default function PointsTablePage() {
           <PageHeader
             title="Points Table"
             breadcrumb="Dashboard / Points Table"
-            description="Standings sorted by points, wins, and simplified cricket Net Run Rate."
+            description="Standings sorted by points, NRR, wins, and team name, recalculated from completed fixtures."
             actions={
               <>
                 <button
@@ -77,7 +77,7 @@ export default function PointsTablePage() {
                   className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black"
                 >
                   <RefreshCw className="h-4 w-4" />
-                  Recalculate Table
+                  Recalculate Points
                 </button>
                 <button
                   type="button"
@@ -101,6 +101,15 @@ export default function PointsTablePage() {
               />
             )}
           </GlassCard>
+
+          <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-4">
+            <p className="text-sm text-slate-300">
+              <span className="font-black text-white">How points are calculated:</span>{" "}
+              Win = 2 points · Tie = 1 point each · No Result = 1 point each · Loss = 0 points.
+              NRR = (runs scored / overs faced) - (runs conceded / overs bowled). Overs are tracked as balls internally for precision.
+              Table sorts by: Points ↓, NRR ↓, Wins ↓, Team name ↑.
+            </p>
+          </div>
 
           <ConfirmDialog
             open={resetOpen}

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isLoggedIn } from "@/lib/storage";
+import { ensureDemoData, isLoggedIn } from "@/lib/storage";
 import { LoadingSkeleton } from "./LoadingSkeleton";
 
 export function AuthGuard({ children }: { children: ReactNode }) {
@@ -18,6 +18,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
+    ensureDemoData();
     setAuthorized(true);
     setChecking(false);
   }, [router]);

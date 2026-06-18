@@ -14,7 +14,7 @@ import { addTeam, deleteTeam, getFixtures, getTeams, updateTeam } from "@/lib/st
 import type { Fixture, Team, TeamInput, TeamStatus } from "@/lib/types";
 import { formatDate, getFixtureTitle, normalizeShortName } from "@/lib/utils";
 
-const colorPresets = ["#22c55e", "#22d3ee", "#f59e0b", "#ef4444", "#a855f7", "#14b8a6"];
+const colorPresets = ["#22c55e", "#f59e0b", "#ef4444", "#14b8a6", "#84cc16", "#78716c"];
 
 const emptyTeamForm: TeamInput = {
   name: "",
