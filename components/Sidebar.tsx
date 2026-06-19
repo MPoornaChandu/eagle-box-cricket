@@ -12,14 +12,17 @@ import {
   LogOut,
   Menu,
   Network,
+  Settings,
   Shield,
+  Share2,
   Trophy,
   Users,
   X
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { getDataSourceStatus, logout as storageLogout } from "@/lib/storage";
+import { useAuth } from "@/hooks/useAuth";
+import { getDataSourceStatus } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 import { useToast } from "./ToastProvider";
@@ -29,12 +32,14 @@ const navItems = [
   { href: "/teams", label: "Teams", icon: Users },
   { href: "/fixtures", label: "Fixtures", icon: CalendarDays },
   { href: "/results", label: "Results", icon: Trophy },
-  { href: "/points-table", label: "Points Table", icon: ListOrdered },
+  { href: "/standings", label: "Standings", icon: ListOrdered },
   { href: "/workflow", label: "Workflow", icon: Network },
   { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/smart-assistant", label: "Smart Assistant", icon: Bot },
-  { href: "/test-cases", label: "Test Cases", icon: ClipboardCheck },
-  { href: "/documentation", label: "Documentation", icon: FileText }
+  { href: "/scoreboard", label: "Scoreboard", icon: Share2 },
+  { href: "/smart-assistant", label: "Automated Insights", icon: Bot },
+  { href: "/test-cases", label: "Quality Checklist", icon: ClipboardCheck },
+  { href: "/documentation", label: "Documentation", icon: FileText },
+  { href: "/settings", label: "Settings", icon: Settings, adminOnly: true }
 ];
 
 interface SidebarProps {
@@ -48,10 +53,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const router = useRouter();
   const { showToast } = useToast();
   const dataSource = getDataSourceStatus();
+  const { session, signOut } = useAuth();
 
   const handleLogout = () => {
-    storageLogout();
-    showToast({ type: "info", title: "Logged out", description: "Demo admin session cleared." });
+    signOut();
+    showToast({ type: "info", title: "Logged out", description: "Demo session cleared." });
     router.replace("/login");
   };
 
@@ -73,7 +79,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </Link>
 
       <nav className="grid min-h-0 flex-1 gap-1 overflow-y-auto px-3 pb-3">
-        {navItems.map((item) => {
+        {navItems.filter((item) => !item.adminOnly || session?.role === "Admin").map((item) => {
           const Icon = item.icon;
           const active = pathname === item.href;
 
@@ -108,8 +114,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.04] p-3">
           <div className="flex items-center gap-2 text-xs font-bold text-emerald-200">
             <Shield className="h-4 w-4" />
-            Demo Admin
+            Demo {session?.role ?? "User"}
           </div>
+          <p className="mt-1 text-xs text-slate-400">{session?.email ?? "No active email"}</p>
           <p className="mt-1 text-xs text-slate-400">{dataSource.label}</p>
         </div>
         <button

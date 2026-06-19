@@ -10,7 +10,7 @@ import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { PageHeader } from "@/components/PageHeader";
 import { TeamCard } from "@/components/TeamCard";
 import { useToast } from "@/components/ToastProvider";
-import { addTeam, deleteTeam, getFixtures, getTeams, updateTeam } from "@/lib/storage";
+import { addTeam, deleteTeam, getCurrentRole, getFixtures, getTeams, updateTeam } from "@/lib/storage";
 import type { Fixture, Team, TeamInput, TeamStatus } from "@/lib/types";
 import { formatDate, getFixtureTitle, normalizeShortName } from "@/lib/utils";
 
@@ -32,13 +32,23 @@ interface DeleteState {
   affectedFixtures: Fixture[];
 }
 
-function validateTeam(form: TeamInput): string {
-  if (!form.name.trim()) return "Team name is required.";
-  if (!form.shortName.trim()) return "Short code is required.";
-  if (!form.captain.trim()) return "Captain name is required.";
-  if (!form.coach.trim()) return "Coach/manager name is required.";
-  if (!form.homeVenue.trim()) return "Home venue is required.";
-  return "";
+function validateTeam(form: TeamInput, teams: Team[], editingTeamId?: string): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (!form.name.trim()) errors.name = "Team name is required.";
+  if (!form.shortName.trim()) errors.shortName = "Short code is required.";
+  if (!form.captain.trim()) errors.captain = "Captain name is required.";
+  if (!form.coach.trim()) errors.coach = "Coach/manager name is required.";
+  if (!form.homeVenue.trim()) errors.homeVenue = "Home venue is required.";
+
+  const normalizedName = form.name.trim().toLowerCase();
+  const normalizedShortCode = form.shortName.trim().toLowerCase();
+  if (normalizedName && teams.some((team) => team.id !== editingTeamId && team.name.trim().toLowerCase() === normalizedName)) {
+    errors.name = "Team name already exists.";
+  }
+  if (normalizedShortCode && teams.some((team) => team.id !== editingTeamId && team.shortName.trim().toLowerCase() === normalizedShortCode)) {
+    errors.shortName = "Short code already exists.";
+  }
+  return errors;
 }
 
 export default function TeamsPage() {
@@ -53,17 +63,19 @@ export default function TeamsPage() {
   const [deleteState, setDeleteState] = useState<DeleteState | null>(null);
   const [formError, setFormError] = useState("");
   const [editError, setEditError] = useState("");
+  const [role, setRole] = useState<"Admin" | "Viewer" | null>(null);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  const loadData = () => {
-    setTeams(getTeams());
-    setFixtures(getFixtures());
+  const loadData = async () => {
+    const [nextTeams, nextFixtures] = await Promise.all([getTeams(), getFixtures()]);
+    setTeams(nextTeams);
+    setFixtures(nextFixtures);
+    setRole(getCurrentRole());
   };
 
   useEffect(() => {
-    loadData();
-    setLoading(false);
+    void loadData().finally(() => setLoading(false));
   }, []);
 
   const filteredTeams = useMemo(() => {
@@ -105,19 +117,23 @@ export default function TeamsPage() {
     contact: input.contact?.trim() || undefined
   });
 
-  const handleAddTeam = (event: FormEvent<HTMLFormElement>) => {
+  const formFieldErrors = useMemo(() => validateTeam(form, teams), [form, teams]);
+  const editFieldErrors = useMemo(() => validateTeam(editForm, teams, editTeam?.id), [editForm, editTeam?.id, teams]);
+  const isAdminUser = role === "Admin";
+
+  const handleAddTeam = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const validationError = validateTeam(form);
-    if (validationError) {
-      setFormError(validationError);
-      showToast({ type: "error", title: "Team not added", description: validationError });
+    const validationErrors = validateTeam(form, teams);
+    const firstError = Object.values(validationErrors)[0];
+    if (firstError) {
+      setFormError(firstError);
       return;
     }
 
     try {
-      addTeam(cleanInput(form));
+      await addTeam(cleanInput(form));
       setForm(emptyTeamForm);
-      loadData();
+      await loadData();
       showToast({ type: "success", title: "Team added", description: "Points table refreshed." });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Team could not be added.";
@@ -141,21 +157,21 @@ export default function TeamsPage() {
     setEditError("");
   };
 
-  const handleEditTeam = (event: FormEvent<HTMLFormElement>) => {
+  const handleEditTeam = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editTeam) return;
 
-    const validationError = validateTeam(editForm);
-    if (validationError) {
-      setEditError(validationError);
-      showToast({ type: "error", title: "Team not updated", description: validationError });
+    const validationErrors = validateTeam(editForm, teams, editTeam.id);
+    const firstError = Object.values(validationErrors)[0];
+    if (firstError) {
+      setEditError(firstError);
       return;
     }
 
     try {
-      updateTeam(editTeam.id, cleanInput(editForm));
+      await updateTeam(editTeam.id, cleanInput(editForm));
       setEditTeam(null);
-      loadData();
+      await loadData();
       showToast({ type: "success", title: "Team updated", description: "Team details saved." });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Team could not be updated.";
@@ -171,54 +187,64 @@ export default function TeamsPage() {
     setDeleteState({ team, affectedFixtures });
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteState) return;
     const fixtureCount = deleteState.affectedFixtures.length;
-    deleteTeam(deleteState.team.id);
+    await deleteTeam(deleteState.team.id);
     setDeleteState(null);
-    loadData();
+    await loadData();
     showToast({
       type: "success",
-      title: "Team deleted",
+      title: fixtureCount > 0 ? "Team archived" : "Team deleted",
       description:
         fixtureCount > 0
-          ? `${fixtureCount} related fixture${fixtureCount > 1 ? "s were" : " was"} removed.`
-          : "No fixtures were affected."
+          ? "This team is linked to existing fixtures/results, so it was archived and hidden from active operations."
+          : "The unlinked team was removed."
     });
   };
 
-  const renderTeamFields = (teamForm: TeamInput, onChange: (field: keyof TeamInput, value: string) => void) => (
+  const renderTeamFields = (
+    teamForm: TeamInput,
+    onChange: (field: keyof TeamInput, value: string) => void,
+    fieldErrors: Record<string, string>
+  ) => (
     <>
       <label className="field-label sm:col-span-2">
-        Team name
-        <input value={teamForm.name} onChange={(event) => onChange("name", event.target.value)} />
+        Team name <span className="text-red-200">*</span>
+        <input value={teamForm.name} onChange={(event) => onChange("name", event.target.value)} placeholder="Eagle Warriors" />
+        {fieldErrors.name ? <span className="text-xs text-red-200">{fieldErrors.name}</span> : null}
       </label>
       <label className="field-label">
-        Short code
-        <input value={teamForm.shortName} onChange={(event) => onChange("shortName", event.target.value)} />
+        Short code <span className="text-red-200">*</span>
+        <input value={teamForm.shortName} onChange={(event) => onChange("shortName", event.target.value)} placeholder="EAG" />
+        {fieldErrors.shortName ? <span className="text-xs text-red-200">{fieldErrors.shortName}</span> : null}
       </label>
       <label className="field-label">
         Status
         <select value={teamForm.status} onChange={(event) => onChange("status", event.target.value as TeamStatus)}>
           <option value="Active">Active</option>
           <option value="Inactive">Inactive</option>
+          <option value="Archived">Archived</option>
         </select>
       </label>
       <label className="field-label">
-        Captain
-        <input value={teamForm.captain} onChange={(event) => onChange("captain", event.target.value)} />
+        Captain <span className="text-red-200">*</span>
+        <input value={teamForm.captain} onChange={(event) => onChange("captain", event.target.value)} placeholder="Captain name" />
+        {fieldErrors.captain ? <span className="text-xs text-red-200">{fieldErrors.captain}</span> : null}
       </label>
       <label className="field-label">
-        Coach / manager
-        <input value={teamForm.coach} onChange={(event) => onChange("coach", event.target.value)} />
+        Coach / manager <span className="text-red-200">*</span>
+        <input value={teamForm.coach} onChange={(event) => onChange("coach", event.target.value)} placeholder="Coach name" />
+        {fieldErrors.coach ? <span className="text-xs text-red-200">{fieldErrors.coach}</span> : null}
       </label>
       <label className="field-label">
-        Home venue
-        <input value={teamForm.homeVenue} onChange={(event) => onChange("homeVenue", event.target.value)} />
+        Home venue <span className="text-red-200">*</span>
+        <input value={teamForm.homeVenue} onChange={(event) => onChange("homeVenue", event.target.value)} placeholder="Eagle Box Arena" />
+        {fieldErrors.homeVenue ? <span className="text-xs text-red-200">{fieldErrors.homeVenue}</span> : null}
       </label>
       <label className="field-label">
         Contact / email
-        <input value={teamForm.contact ?? ""} onChange={(event) => onChange("contact", event.target.value)} />
+        <input value={teamForm.contact ?? ""} onChange={(event) => onChange("contact", event.target.value)} placeholder="Phone or email" />
       </label>
     </>
   );
@@ -232,13 +258,14 @@ export default function TeamsPage() {
           <PageHeader
             title="Teams"
             breadcrumb="Dashboard / Teams"
-            description="Create, edit, search, and manage tournament teams with backend-ready local data."
+            description="Create, edit, search, and manage tournament teams with Supabase-backed persistence."
           />
 
-          <section className="grid gap-6 xl:grid-cols-[0.95fr_1.35fr]">
+          <section className={isAdminUser ? "grid gap-6 xl:grid-cols-[0.95fr_1.35fr]" : "grid gap-6"}>
+            {isAdminUser ? (
             <form onSubmit={handleAddTeam} className="glass-panel rounded-lg p-5">
               <h2 className="mb-4 text-xl font-black text-white">Add Team</h2>
-              <div className="grid gap-4 sm:grid-cols-2">{renderTeamFields(form, handleFormChange)}</div>
+              <div className="grid gap-4 sm:grid-cols-2">{renderTeamFields(form, handleFormChange, formFieldErrors)}</div>
 
               <div className="mt-4">
                 <p className="mb-2 text-sm font-black text-slate-200">Logo color</p>
@@ -262,11 +289,12 @@ export default function TeamsPage() {
 
               {formError ? <p className="mt-4 text-sm font-semibold text-red-200">{formError}</p> : null}
 
-              <button type="submit" className="premium-button mt-5 flex items-center gap-2 px-4 py-3">
+              <button type="submit" disabled={Object.keys(formFieldErrors).length > 0} className="premium-button mt-5 flex items-center gap-2 px-4 py-3">
                 <Plus className="h-4 w-4" />
                 Add Team
               </button>
             </form>
+            ) : null}
 
             <div>
               <div className="glass-panel mb-5 grid gap-3 rounded-lg p-4 lg:grid-cols-[1fr_auto_auto]">
@@ -278,6 +306,7 @@ export default function TeamsPage() {
                   <option value="All">All statuses</option>
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
+                  <option value="Archived">Archived</option>
                 </select>
                 <div className="flex gap-2">
                   <button type="button" title="Card view" onClick={() => setViewMode("cards")} className={viewMode === "cards" ? "premium-button px-3 py-2" : "secondary-button px-3 py-2"}>
@@ -292,7 +321,7 @@ export default function TeamsPage() {
               {filteredTeams.length > 0 && viewMode === "cards" ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   {filteredTeams.map((team) => (
-                    <TeamCard key={team.id} team={team} onEdit={openEdit} onDelete={requestDelete} />
+                    <TeamCard key={team.id} team={team} onEdit={isAdminUser ? openEdit : undefined} onDelete={isAdminUser ? requestDelete : undefined} />
                   ))}
                 </div>
               ) : null}
@@ -309,7 +338,7 @@ export default function TeamsPage() {
                           <th className="px-4 py-3">Venue</th>
                           <th className="px-4 py-3">Status</th>
                           <th className="px-4 py-3">Created</th>
-                          <th className="px-4 py-3">Actions</th>
+                          {isAdminUser ? <th className="px-4 py-3">Actions</th> : null}
                         </tr>
                       </thead>
                       <tbody>
@@ -321,12 +350,14 @@ export default function TeamsPage() {
                             <td className="px-4 py-3 text-slate-200">{team.homeVenue}</td>
                             <td className="px-4 py-3 text-slate-200">{team.status}</td>
                             <td className="px-4 py-3 text-slate-200">{formatDate(team.createdAt.slice(0, 10))}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex gap-2">
-                                <button type="button" onClick={() => openEdit(team)} className="secondary-button px-3 py-2 text-xs font-black">Edit</button>
-                                <button type="button" onClick={() => requestDelete(team)} className="danger-button px-3 py-2 text-xs font-black">Delete</button>
-                              </div>
-                            </td>
+                            {isAdminUser ? (
+                              <td className="px-4 py-3">
+                                <div className="flex gap-2">
+                                  <button type="button" onClick={() => openEdit(team)} className="secondary-button px-3 py-2 text-xs font-black">Edit</button>
+                                  <button type="button" onClick={() => requestDelete(team)} className="danger-button px-3 py-2 text-xs font-black">Archive</button>
+                                </div>
+                              </td>
+                            ) : null}
                           </tr>
                         ))}
                       </tbody>
@@ -336,13 +367,13 @@ export default function TeamsPage() {
               ) : null}
 
               {filteredTeams.length === 0 ? (
-                <EmptyState title={teams.length ? "No teams match your filters" : "No teams yet"} description={teams.length ? "Try another search term or status." : "Add a team or reset demo data from the points table."} />
+                <EmptyState title={teams.length ? "No teams match your filters" : "No teams added yet. Add your first team to get started."} description={teams.length ? "Try another search term or status." : isAdminUser ? "Use the Add Team form to start the tournament." : "Ask an Admin to create teams."} />
               ) : null}
             </div>
           </section>
 
           <AnimatePresence>
-            {editTeam ? (
+            {editTeam && isAdminUser ? (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[65] grid place-items-center bg-slate-950/78 p-4 backdrop-blur-md">
                 <motion.form initial={{ opacity: 0, y: 18, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.96 }} onSubmit={handleEditTeam} className="glass-panel max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg p-5">
                   <div className="mb-5 flex items-center justify-between gap-3">
@@ -351,7 +382,7 @@ export default function TeamsPage() {
                       <X className="h-5 w-5" />
                     </button>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">{renderTeamFields(editForm, handleEditChange)}</div>
+                  <div className="grid gap-4 sm:grid-cols-2">{renderTeamFields(editForm, handleEditChange, editFieldErrors)}</div>
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {colorPresets.map((color) => (
                       <button key={color} type="button" aria-label={`Choose ${color}`} onClick={() => handleEditChange("logoColor", color)} className="h-9 w-9 rounded-lg border border-white/20" style={{ background: color, boxShadow: editForm.logoColor === color ? "0 0 0 3px rgba(34,211,238,0.35)" : undefined }} />
@@ -361,7 +392,7 @@ export default function TeamsPage() {
                   {editError ? <p className="mt-4 text-sm font-semibold text-red-200">{editError}</p> : null}
                   <div className="mt-6 flex justify-end gap-3">
                     <button type="button" onClick={() => setEditTeam(null)} className="secondary-button px-4 py-2">Cancel</button>
-                    <button type="submit" className="premium-button flex items-center gap-2 px-4 py-2">
+                    <button type="submit" disabled={Object.keys(editFieldErrors).length > 0} className="premium-button flex items-center gap-2 px-4 py-2">
                       <Save className="h-4 w-4" />
                       Save
                     </button>
@@ -373,9 +404,9 @@ export default function TeamsPage() {
 
           <ConfirmDialog
             open={Boolean(deleteState)}
-            title={deleteState?.affectedFixtures.length ? "Delete team and fixtures?" : "Delete team?"}
-            description={deleteState?.affectedFixtures.length ? "This team is used in fixtures. Confirming will delete the team, delete every affected fixture, and recalculate the points table." : "This team is not used in any fixture. Confirm deletion to remove it from the tournament."}
-            confirmText="Delete"
+            title={deleteState?.affectedFixtures.length ? "Archive linked team?" : "Delete unlinked team?"}
+            description={deleteState?.affectedFixtures.length ? "This team is linked to existing fixtures/results. Archive it instead of deleting. Archived teams are hidden from active standings, fixtures, reports, insights, charts, and the public scoreboard." : "This team is not used in any fixture. Confirm deletion to remove it from the tournament workspace."}
+            confirmText={deleteState?.affectedFixtures.length ? "Archive" : "Delete"}
             tone="danger"
             details={deleteState?.affectedFixtures.map((fixture) => getFixtureTitle(fixture, teams))}
             onClose={() => setDeleteState(null)}

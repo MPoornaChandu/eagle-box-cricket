@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DatabaseZap, RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EmptyState } from "@/components/EmptyState";
 import { GlassCard } from "@/components/GlassCard";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
@@ -14,32 +13,31 @@ import {
   getFixtures,
   getPointsTable,
   getTeams,
-  recalculateAndSavePointsTable,
-  resetAllData
+  recalculateAndSavePointsTable
 } from "@/lib/storage";
 import type { Fixture, PointsRow, Team } from "@/lib/types";
+import { downloadTextFile, escapeCsv, formatNrr, getActiveFixtures, getActiveTeams, getTeamName } from "@/lib/utils";
 
 export default function PointsTablePage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [pointsTable, setPointsTable] = useState<PointsRow[]>([]);
-  const [resetOpen, setResetOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  const loadData = () => {
-    setTeams(getTeams());
-    setFixtures(getFixtures());
-    setPointsTable(getPointsTable());
+  const loadData = async () => {
+    const [nextTeams, nextFixtures, nextPoints] = await Promise.all([getTeams(), getFixtures(), getPointsTable()]);
+    setTeams(getActiveTeams(nextTeams));
+    setFixtures(getActiveFixtures(nextFixtures, nextTeams));
+    setPointsTable(nextPoints);
   };
 
   useEffect(() => {
-    loadData();
-    setLoading(false);
+    void loadData().finally(() => setLoading(false));
   }, []);
 
-  const handleRecalculate = () => {
-    const nextTable = recalculateAndSavePointsTable(teams, fixtures);
+  const handleRecalculate = async () => {
+    const nextTable = await recalculateAndSavePointsTable(teams, fixtures);
     setPointsTable(nextTable);
     showToast({
       type: "success",
@@ -48,15 +46,23 @@ export default function PointsTablePage() {
     });
   };
 
-  const handleReset = () => {
-    resetAllData();
-    setResetOpen(false);
-    loadData();
-    showToast({
-      type: "success",
-      title: "Demo data reset",
-      description: "Seed teams, fixtures, and points table are reloaded."
-    });
+  const handleExport = () => {
+    const rows = [
+      ["Rank", "Team", "Played", "Won", "Lost", "Tied", "No Result", "NRR", "Points"],
+      ...pointsTable.map((row, index) => [
+        index + 1,
+        getTeamName(teams, row.teamId),
+        row.played,
+        row.won,
+        row.lost,
+        row.tied,
+        row.noResult,
+        formatNrr(row.netRunRate),
+        row.points
+      ])
+    ];
+    downloadTextFile("eagle-box-standings.csv", rows.map((row) => row.map(escapeCsv).join(",")).join("\n"));
+    showToast({ type: "success", title: "CSV exported", description: "Standings CSV is ready." });
   };
 
   return (
@@ -81,11 +87,11 @@ export default function PointsTablePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setResetOpen(true)}
-                  className="premium-button flex items-center gap-2 px-4 py-2 text-sm"
+                  onClick={handleExport}
+                  className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black"
                 >
-                  <DatabaseZap className="h-4 w-4" />
-                  Reset Demo Data
+                  <Download className="h-4 w-4" />
+                  Download CSV
                 </button>
               </>
             }
@@ -96,8 +102,8 @@ export default function PointsTablePage() {
               <PointsTableView pointsTable={pointsTable} teams={teams} />
             ) : (
               <EmptyState
-                title="No points data"
-                description="Add teams or seed demo data to initialize standings."
+                title="No completed matches yet"
+                description="Enter results to generate standings."
               />
             )}
           </GlassCard>
@@ -105,20 +111,10 @@ export default function PointsTablePage() {
           <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-4">
             <p className="text-sm text-slate-300">
               <span className="font-black text-white">How points are calculated:</span>{" "}
-              Win = 2 points · Tie = 1 point each · No Result = 1 point each · Loss = 0 points.
-              NRR = (runs scored / overs faced) - (runs conceded / overs bowled). Overs are tracked as balls internally for precision.
-              Table sorts by: Points ↓, NRR ↓, Wins ↓, Team name ↑.
+              Points come from Tournament Settings. NRR = (runs scored / overs faced) - (runs conceded / overs bowled).
+              Overs are tracked as balls internally for precision. Table sorts by: Points desc, NRR desc, Wins desc, Team name asc.
             </p>
           </div>
-
-          <ConfirmDialog
-            open={resetOpen}
-            title="Reset demo data?"
-            description="This will clear all current local teams, fixtures, results, and standings, then reload the Eagle Box Cricket demo data."
-            confirmText="Reset"
-            onClose={() => setResetOpen(false)}
-            onConfirm={handleReset}
-          />
         </>
       )}
     </AppShell>

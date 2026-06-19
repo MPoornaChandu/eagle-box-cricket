@@ -1,4 +1,24 @@
-import type { ActivityItem, Fixture, ReportLog, Team } from "./types";
+import type {
+  ActivityItem,
+  Fixture,
+  PlayerBattingStat,
+  PlayerBowlingStat,
+  ReportLog,
+  Team,
+  TournamentSettings
+} from "./types";
+
+export const demoTournamentSettings: TournamentSettings = {
+  id: "settings-demo",
+  tournamentName: "Eagle Box Cricket",
+  format: "Round Robin",
+  maxTeams: 8,
+  pointsPerWin: 2,
+  pointsPerTie: 1,
+  pointsPerLoss: 0,
+  createdAt: "2026-06-01T09:00:00.000Z",
+  updatedAt: "2026-06-01T09:00:00.000Z"
+};
 
 export const demoTeams: Team[] = [
   {
@@ -50,28 +70,28 @@ export const demoTeams: Team[] = [
     status: "Active"
   },
   {
-    id: "team-coastal-kings",
-    name: "Coastal Kings",
-    shortName: "CKG",
+    id: "team-valley-kings",
+    name: "Valley Kings",
+    shortName: "VLK",
     captain: "Dev Menon",
     coach: "Prakash Das",
-    homeVenue: "Harbour Nets",
+    homeVenue: "Valley Sports Hub",
     contact: "dev@eaglebox.com",
     logoColor: "#14b8a6",
     createdAt: "2026-05-28T09:20:00.000Z",
     status: "Active"
   },
   {
-    id: "team-skyline-riders",
-    name: "Skyline Riders",
-    shortName: "SKR",
+    id: "team-metro-falcons",
+    name: "Metro Falcons",
+    shortName: "MTF",
     captain: "Karan Patel",
     coach: "Nitin Shah",
-    homeVenue: "Skyline Oval",
+    homeVenue: "Metro Oval",
     contact: "9876543215",
-    logoColor: "#a855f7",
+    logoColor: "#2563eb",
     createdAt: "2026-05-28T09:25:00.000Z",
-    status: "Inactive"
+    status: "Active"
   }
 ];
 
@@ -87,6 +107,7 @@ export const demoFixtures: Fixture[] = [
     matchType: "League",
     status: "Report Generated",
     tossWinnerTeamId: "team-thunder-strikers",
+    electedTo: "Field",
     winnerTeamId: "team-eagle-warriors",
     teamAScore: 156,
     teamAWickets: 7,
@@ -126,8 +147,9 @@ export const demoFixtures: Fixture[] = [
     time: "14:00",
     venue: "Central Turf",
     matchType: "League",
-    status: "Points Updated",
+    status: "Report Generated",
     tossWinnerTeamId: "team-royal-challengers",
+    electedTo: "Bat",
     winnerTeamId: "team-hyderabad-titans",
     teamAScore: 98,
     teamAWickets: 4,
@@ -155,20 +177,22 @@ export const demoFixtures: Fixture[] = [
     },
     createdAt: "2026-06-01T10:05:00.000Z",
     completedAt: "2026-06-12T17:10:00.000Z",
-    pointsUpdatedAt: "2026-06-12T17:16:00.000Z"
+    pointsUpdatedAt: "2026-06-12T17:16:00.000Z",
+    reportGeneratedAt: "2026-06-12T17:21:00.000Z"
   },
   {
     id: "fixture-ebc-003",
     matchId: "EBC-003",
-    teamAId: "team-coastal-kings",
-    teamBId: "team-skyline-riders",
+    teamAId: "team-valley-kings",
+    teamBId: "team-metro-falcons",
     date: "2026-06-16",
     time: "18:00",
-    venue: "Harbour Nets",
+    venue: "Valley Sports Hub",
     matchType: "League",
     status: "Completed",
-    tossWinnerTeamId: "team-coastal-kings",
-    winnerTeamId: "team-skyline-riders",
+    tossWinnerTeamId: "team-valley-kings",
+    electedTo: "Bat",
+    winnerTeamId: "team-metro-falcons",
     teamAScore: 175,
     teamAWickets: 8,
     teamAOvers: "20.0",
@@ -179,7 +203,7 @@ export const demoFixtures: Fixture[] = [
     playerOfMatch: "Karan Patel",
     fours: 24,
     sixes: 8,
-    notes: "Skyline Riders chased 176 in 19.4 overs. Points update is pending.",
+    notes: "Metro Falcons chased 176 in 19.4 overs. Points update is pending.",
     result: {
       teamARuns: 175,
       teamAWickets: 8,
@@ -188,9 +212,9 @@ export const demoFixtures: Fixture[] = [
       teamBWickets: 6,
       teamBOvers: "19.4",
       resultType: "Normal win",
-      winnerTeamId: "team-skyline-riders",
+      winnerTeamId: "team-metro-falcons",
       playerOfMatch: "Karan Patel",
-      notes: "Skyline Riders chased 176 in 19.4 overs. Points update is pending.",
+      notes: "Metro Falcons chased 176 in 19.4 overs. Points update is pending.",
       submittedAt: "2026-06-16T20:08:00.000Z"
     },
     createdAt: "2026-06-01T10:10:00.000Z",
@@ -201,37 +225,66 @@ export const demoFixtures: Fixture[] = [
     matchId: "EBC-004",
     teamAId: "team-eagle-warriors",
     teamBId: "team-royal-challengers",
-    date: "2026-06-17",
+    date: "2026-06-18",
     time: "19:00",
     venue: "Eagle Box Arena",
     matchType: "League",
-    status: "Scheduled",
-    notes: "Prime-time group stage fixture.",
-    createdAt: "2026-06-02T10:00:00.000Z"
+    status: "Points Updated",
+    tossWinnerTeamId: "team-eagle-warriors",
+    electedTo: "Bat",
+    winnerTeamId: "team-eagle-warriors",
+    teamAScore: 145,
+    teamAWickets: 6,
+    teamAOvers: "20.0",
+    teamBScore: 132,
+    teamBWickets: 8,
+    teamBOvers: "20.0",
+    resultType: "Normal win",
+    playerOfMatch: "Rohit Varma",
+    fours: 16,
+    sixes: 4,
+    notes: "Eagle Warriors controlled the middle overs and defended 145.",
+    result: {
+      teamARuns: 145,
+      teamAWickets: 6,
+      teamAOvers: "20.0",
+      teamBRuns: 132,
+      teamBWickets: 8,
+      teamBOvers: "20.0",
+      resultType: "Normal win",
+      winnerTeamId: "team-eagle-warriors",
+      playerOfMatch: "Rohit Varma",
+      notes: "Eagle Warriors controlled the middle overs and defended 145.",
+      submittedAt: "2026-06-18T21:36:00.000Z"
+    },
+    createdAt: "2026-06-02T10:00:00.000Z",
+    completedAt: "2026-06-18T21:36:00.000Z",
+    pointsUpdatedAt: "2026-06-18T21:42:00.000Z"
   },
   {
     id: "fixture-ebc-005",
     matchId: "EBC-005",
     teamAId: "team-thunder-strikers",
-    teamBId: "team-coastal-kings",
-    date: "2026-06-18",
+    teamBId: "team-valley-kings",
+    date: "2026-06-20",
     time: "10:00",
     venue: "North Stand Ground",
     matchType: "League",
     status: "Scheduled",
+    notes: "Morning group fixture.",
     createdAt: "2026-06-02T10:05:00.000Z"
   },
   {
     id: "fixture-ebc-006",
     matchId: "EBC-006",
     teamAId: "team-hyderabad-titans",
-    teamBId: "team-skyline-riders",
-    date: "2026-06-19",
+    teamBId: "team-metro-falcons",
+    date: "2026-06-21",
     time: "14:00",
     venue: "Metro Cricket Park",
     matchType: "League",
     status: "Draft",
-    notes: "Awaiting final venue confirmation.",
+    notes: "Awaiting final umpire allocation.",
     createdAt: "2026-06-02T10:10:00.000Z"
   },
   {
@@ -239,7 +292,7 @@ export const demoFixtures: Fixture[] = [
     matchId: "EBC-007",
     teamAId: "team-eagle-warriors",
     teamBId: "team-hyderabad-titans",
-    date: "2026-06-20",
+    date: "2026-06-22",
     time: "18:30",
     venue: "Eagle Box Arena",
     matchType: "Semi Final",
@@ -251,14 +304,36 @@ export const demoFixtures: Fixture[] = [
     matchId: "EBC-008",
     teamAId: "team-thunder-strikers",
     teamBId: "team-royal-challengers",
-    date: "2026-06-22",
+    date: "2026-06-23",
     time: "20:00",
     venue: "Eagle Box Arena",
     matchType: "Final",
     status: "Scheduled",
-    notes: "Mock final fixture for demo reporting.",
+    notes: "Sample final fixture for report generation.",
     createdAt: "2026-06-02T10:20:00.000Z"
   }
+];
+
+export const demoPlayerBattingStats: PlayerBattingStat[] = [
+  { id: "bat-001", fixtureId: "fixture-ebc-001", teamId: "team-eagle-warriors", playerName: "Arjun Reddy", runs: 62, balls: 41, createdAt: "2026-06-10T13:22:00.000Z" },
+  { id: "bat-002", fixtureId: "fixture-ebc-001", teamId: "team-thunder-strikers", playerName: "Rahul Sharma", runs: 48, balls: 36, createdAt: "2026-06-10T13:22:00.000Z" },
+  { id: "bat-003", fixtureId: "fixture-ebc-002", teamId: "team-hyderabad-titans", playerName: "Suresh Kumar", runs: 51, balls: 31, createdAt: "2026-06-12T17:10:00.000Z" },
+  { id: "bat-004", fixtureId: "fixture-ebc-002", teamId: "team-royal-challengers", playerName: "Virat Singh", runs: 44, balls: 28, createdAt: "2026-06-12T17:10:00.000Z" },
+  { id: "bat-005", fixtureId: "fixture-ebc-003", teamId: "team-metro-falcons", playerName: "Karan Patel", runs: 73, balls: 46, createdAt: "2026-06-16T20:08:00.000Z" },
+  { id: "bat-006", fixtureId: "fixture-ebc-003", teamId: "team-valley-kings", playerName: "Dev Menon", runs: 66, balls: 42, createdAt: "2026-06-16T20:08:00.000Z" },
+  { id: "bat-007", fixtureId: "fixture-ebc-004", teamId: "team-eagle-warriors", playerName: "Rohit Varma", runs: 58, balls: 39, createdAt: "2026-06-18T21:36:00.000Z" },
+  { id: "bat-008", fixtureId: "fixture-ebc-004", teamId: "team-royal-challengers", playerName: "Virat Singh", runs: 52, balls: 45, createdAt: "2026-06-18T21:36:00.000Z" }
+];
+
+export const demoPlayerBowlingStats: PlayerBowlingStat[] = [
+  { id: "bowl-001", fixtureId: "fixture-ebc-001", teamId: "team-eagle-warriors", playerName: "Naveen Rao", oversBalls: 24, wickets: 3, runsGiven: 28, createdAt: "2026-06-10T13:22:00.000Z" },
+  { id: "bowl-002", fixtureId: "fixture-ebc-001", teamId: "team-thunder-strikers", playerName: "Imran Ali", oversBalls: 24, wickets: 2, runsGiven: 31, createdAt: "2026-06-10T13:22:00.000Z" },
+  { id: "bowl-003", fixtureId: "fixture-ebc-002", teamId: "team-hyderabad-titans", playerName: "Ajay Prasad", oversBalls: 18, wickets: 2, runsGiven: 22, createdAt: "2026-06-12T17:10:00.000Z" },
+  { id: "bowl-004", fixtureId: "fixture-ebc-002", teamId: "team-royal-challengers", playerName: "Manoj Pillai", oversBalls: 17, wickets: 1, runsGiven: 25, createdAt: "2026-06-12T17:10:00.000Z" },
+  { id: "bowl-005", fixtureId: "fixture-ebc-003", teamId: "team-metro-falcons", playerName: "Aditya Shah", oversBalls: 24, wickets: 3, runsGiven: 34, createdAt: "2026-06-16T20:08:00.000Z" },
+  { id: "bowl-006", fixtureId: "fixture-ebc-003", teamId: "team-valley-kings", playerName: "Ravi Das", oversBalls: 24, wickets: 2, runsGiven: 39, createdAt: "2026-06-16T20:08:00.000Z" },
+  { id: "bowl-007", fixtureId: "fixture-ebc-004", teamId: "team-eagle-warriors", playerName: "Naveen Rao", oversBalls: 24, wickets: 2, runsGiven: 24, createdAt: "2026-06-18T21:36:00.000Z" },
+  { id: "bowl-008", fixtureId: "fixture-ebc-004", teamId: "team-royal-challengers", playerName: "Manoj Pillai", oversBalls: 24, wickets: 2, runsGiven: 29, createdAt: "2026-06-18T21:36:00.000Z" }
 ];
 
 export const demoReports: ReportLog[] = [
@@ -278,24 +353,24 @@ export const demoReports: ReportLog[] = [
   },
   {
     id: "report-demo-003",
-    title: "Pending actions checklist",
-    type: "Pending Actions Report",
-    generatedAt: "2026-06-16T20:15:00.000Z",
-    summary: "EBC-003 needs points update and final match report generation."
+    title: "Player performers snapshot",
+    type: "Player Stats Report",
+    generatedAt: "2026-06-18T21:45:00.000Z",
+    summary: "Karan Patel, Arjun Reddy, and Naveen Rao are leading early player performance charts."
   }
 ];
 
 export const demoActivities: ActivityItem[] = [
   {
     id: "activity-demo-001",
-    message: "EBC-003 result saved. Skyline Riders chased 176 in 19.4 overs.",
-    timestamp: "2026-06-16T20:08:00.000Z",
+    message: "EBC-004 result saved. Eagle Warriors defended 145 in 20 overs.",
+    timestamp: "2026-06-18T21:36:00.000Z",
     type: "result"
   },
   {
     id: "activity-demo-002",
-    message: "Points table snapshot generated for the internship report log.",
-    timestamp: "2026-06-12T17:18:00.000Z",
+    message: "Player performers report generated for batting and bowling leaders.",
+    timestamp: "2026-06-18T21:45:00.000Z",
     type: "report"
   },
   {
@@ -306,11 +381,15 @@ export const demoActivities: ActivityItem[] = [
   },
   {
     id: "activity-demo-004",
-    message: "Six demo teams were loaded for Eagle Box Cricket.",
+    message: "Six realistic demo teams were loaded for Eagle Box Cricket.",
     timestamp: "2026-06-01T10:00:00.000Z",
     type: "team"
   }
 ];
+
+export function getDemoTournamentSettings(): TournamentSettings {
+  return { ...demoTournamentSettings };
+}
 
 export function getDemoTeams(): Team[] {
   return demoTeams.map((team) => ({ ...team }));
@@ -321,6 +400,14 @@ export function getDemoFixtures(): Fixture[] {
     ...fixture,
     result: fixture.result ? { ...fixture.result } : undefined
   }));
+}
+
+export function getDemoPlayerBattingStats(): PlayerBattingStat[] {
+  return demoPlayerBattingStats.map((stat) => ({ ...stat }));
+}
+
+export function getDemoPlayerBowlingStats(): PlayerBowlingStat[] {
+  return demoPlayerBowlingStats.map((stat) => ({ ...stat }));
 }
 
 export function getDemoReports(): ReportLog[] {

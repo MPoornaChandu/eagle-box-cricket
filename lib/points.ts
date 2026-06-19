@@ -1,5 +1,5 @@
-import type { Fixture, FormResult, MatchResult, PointsRow, Team } from "./types";
-import { getTeamName } from "./utils";
+import type { Fixture, FormResult, MatchResult, PointsRow, Team, TournamentSettings } from "./types";
+import { getActiveTeams, getTeamName } from "./utils";
 
 const completedStatuses = new Set(["Completed", "Points Updated", "Report Generated"]);
 
@@ -173,7 +173,8 @@ function applyOutcome(
   fixture: Fixture,
   result: MatchResult,
   teamARow: PointsRow,
-  teamBRow: PointsRow
+  teamBRow: PointsRow,
+  settings: Pick<TournamentSettings, "pointsPerWin" | "pointsPerTie" | "pointsPerLoss">
 ): void {
   teamARow.played += 1;
   teamBRow.played += 1;
@@ -196,8 +197,8 @@ function applyOutcome(
   if (result.resultType === "Tie") {
     teamARow.tied += 1;
     teamBRow.tied += 1;
-    teamARow.points += 1;
-    teamBRow.points += 1;
+    teamARow.points += settings.pointsPerTie;
+    teamBRow.points += settings.pointsPerTie;
     pushForm(teamARow, "T");
     pushForm(teamBRow, "T");
     return;
@@ -206,8 +207,8 @@ function applyOutcome(
   if (result.resultType === "No result") {
     teamARow.noResult += 1;
     teamBRow.noResult += 1;
-    teamARow.points += 1;
-    teamBRow.points += 1;
+    teamARow.points += settings.pointsPerTie;
+    teamBRow.points += settings.pointsPerTie;
     pushForm(teamARow, "NR");
     pushForm(teamBRow, "NR");
     return;
@@ -224,8 +225,8 @@ function applyOutcome(
   if (!winnerTeamId) {
     teamARow.tied += 1;
     teamBRow.tied += 1;
-    teamARow.points += 1;
-    teamBRow.points += 1;
+    teamARow.points += settings.pointsPerTie;
+    teamBRow.points += settings.pointsPerTie;
     pushForm(teamARow, "T");
     pushForm(teamBRow, "T");
     return;
@@ -235,18 +236,28 @@ function applyOutcome(
   const loserRow = winnerTeamId === fixture.teamAId ? teamBRow : teamARow;
 
   winnerRow.won += 1;
-  winnerRow.points += 2;
+  winnerRow.points += settings.pointsPerWin;
   loserRow.lost += 1;
+  loserRow.points += settings.pointsPerLoss;
   pushForm(winnerRow, "W");
   pushForm(loserRow, "L");
 }
 
 // Full recalculation.
 
-export function recalculatePointsTable(teams: Team[], fixtures: Fixture[]): PointsRow[] {
+export function recalculatePointsTable(
+  teams: Team[],
+  fixtures: Fixture[],
+  settings: Pick<TournamentSettings, "pointsPerWin" | "pointsPerTie" | "pointsPerLoss"> = {
+    pointsPerWin: 2,
+    pointsPerTie: 1,
+    pointsPerLoss: 0
+  }
+): PointsRow[] {
   const lastUpdated = new Date().toISOString();
+  const activeTeams = getActiveTeams(teams);
   const rowsByTeam = new Map<string, PointsRow>(
-    teams.map((team) => [team.id, emptyPointsRow(team.id, lastUpdated)])
+    activeTeams.map((team) => [team.id, emptyPointsRow(team.id, lastUpdated)])
   );
 
   fixtures
@@ -263,7 +274,7 @@ export function recalculatePointsTable(teams: Team[], fixtures: Fixture[]): Poin
         return;
       }
 
-      applyOutcome(fixture, result, teamARow, teamBRow);
+      applyOutcome(fixture, result, teamARow, teamBRow, settings);
     });
 
   return Array.from(rowsByTeam.values())
@@ -275,6 +286,6 @@ export function recalculatePointsTable(teams: Team[], fixtures: Fixture[]): Poin
       if (b.points !== a.points) return b.points - a.points;
       if (b.netRunRate !== a.netRunRate) return b.netRunRate - a.netRunRate;
       if (b.won !== a.won) return b.won - a.won;
-      return getTeamName(teams, a.teamId).localeCompare(getTeamName(teams, b.teamId));
+      return getTeamName(activeTeams, a.teamId).localeCompare(getTeamName(activeTeams, b.teamId));
     });
 }

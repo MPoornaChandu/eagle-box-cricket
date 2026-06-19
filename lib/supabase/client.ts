@@ -39,14 +39,14 @@ export function getDataSourceStatus(): DataSourceStatus {
   if (isSupabaseConfigured()) {
     return {
       mode: "supabase",
-      label: "Database: Supabase",
-      description: "Supabase PostgreSQL sync is enabled with local demo fallback."
+      label: "Database: Supabase Connected",
+      description: "Supabase PostgreSQL sync is enabled."
     };
   }
 
   return {
     mode: "localStorage",
-    label: "Database: Local demo storage",
+    label: "Database: Local Demo Mode",
     description: "Supabase keys are missing, so the app uses browser localStorage."
   };
 }

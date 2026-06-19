@@ -9,26 +9,41 @@ import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { PageHeader } from "@/components/PageHeader";
 import { ResultForm } from "@/components/ResultForm";
 import { getFixtureResult } from "@/lib/points";
-import { getFixtures, getTeams } from "@/lib/storage";
-import type { Fixture, Team } from "@/lib/types";
-import { cn, formatDate, formatScore, formatTime, getTeamName, statusBadgeClasses } from "@/lib/utils";
+import { getCurrentRole, getFixtures, getPlayerBattingStats, getPlayerBowlingStats, getTeams } from "@/lib/storage";
+import type { Fixture, PlayerBattingStat, PlayerBowlingStat, Team } from "@/lib/types";
+import { cn, formatDate, formatScore, formatTime, getActiveFixtures, getActiveTeams, getTeamName, statusBadgeClasses } from "@/lib/utils";
 
 export default function ResultsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [battingStats, setBattingStats] = useState<PlayerBattingStat[]>([]);
+  const [bowlingStats, setBowlingStats] = useState<PlayerBowlingStat[]>([]);
   const [selectedFixtureId, setSelectedFixtureId] = useState("");
+  const [role, setRole] = useState<"Admin" | "Viewer" | null>(null);
   const [celebrationText, setCelebrationText] = useState("");
   const [celebrationOpen, setCelebrationOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const loadData = () => {
-    setTeams(getTeams());
-    setFixtures(getFixtures());
+  const loadData = async () => {
+    const [nextTeams, nextFixtures, nextBatting, nextBowling] = await Promise.all([
+      getTeams(),
+      getFixtures(),
+      getPlayerBattingStats(),
+      getPlayerBowlingStats()
+    ]);
+    const activeTeams = getActiveTeams(nextTeams);
+    const activeTeamIds = new Set(activeTeams.map((team) => team.id));
+    const activeFixtures = getActiveFixtures(nextFixtures, nextTeams);
+    const activeFixtureIds = new Set(activeFixtures.map((fixture) => fixture.id));
+    setTeams(activeTeams);
+    setFixtures(activeFixtures);
+    setBattingStats(nextBatting.filter((stat) => activeTeamIds.has(stat.teamId) && activeFixtureIds.has(stat.fixtureId)));
+    setBowlingStats(nextBowling.filter((stat) => activeTeamIds.has(stat.teamId) && activeFixtureIds.has(stat.fixtureId)));
+    setRole(getCurrentRole());
   };
 
   useEffect(() => {
-    loadData();
-    setLoading(false);
+    void loadData().finally(() => setLoading(false));
   }, []);
 
   const resultFixtures = useMemo(
@@ -40,6 +55,7 @@ export default function ResultsPage() {
   );
 
   const selectedFixture = resultFixtures.find((fixture) => fixture.id === selectedFixtureId);
+  const isAdminUser = role === "Admin";
 
   const handleSubmitted = (nextFixtures: Fixture[], celebration: string) => {
     setFixtures(nextFixtures);
@@ -116,8 +132,28 @@ export default function ResultsPage() {
             </div>
 
             <div>
-              {selectedFixture ? (
-                <ResultForm fixture={selectedFixture} teams={teams} onSubmitted={handleSubmitted} />
+              {selectedFixture && isAdminUser ? (
+                <ResultForm
+                  fixture={selectedFixture}
+                  teams={teams}
+                  battingStats={battingStats}
+                  bowlingStats={bowlingStats}
+                  onSubmitted={handleSubmitted}
+                />
+              ) : selectedFixture ? (
+                <div className="glass-panel rounded-lg p-5">
+                  <h2 className="text-2xl font-black text-white">Read-only result view</h2>
+                  <p className="mt-2 text-sm text-slate-300">
+                    Viewer accounts can review results but cannot create or edit scorecards.
+                  </p>
+                  {getFixtureResult(selectedFixture) ? (
+                    <p className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm font-semibold text-emerald-100">
+                      {formatScore(getFixtureResult(selectedFixture)?.teamARuns, getFixtureResult(selectedFixture)?.teamAWickets)} vs {formatScore(getFixtureResult(selectedFixture)?.teamBRuns, getFixtureResult(selectedFixture)?.teamBWickets)}
+                    </p>
+                  ) : (
+                    <EmptyState title="Result pending" description="An Admin has not entered this scorecard yet." />
+                  )}
+                </div>
               ) : (
                 <EmptyState
                   title="Select a fixture"

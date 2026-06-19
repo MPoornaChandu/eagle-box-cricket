@@ -14,6 +14,7 @@ import {
   Medal,
   Plus,
   RefreshCw,
+  Share2,
   TrendingUp,
   Trophy,
   Users
@@ -21,7 +22,6 @@ import {
 import { motion } from "framer-motion";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { AppShell } from "@/components/AppShell";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EagleBoxVideoHero } from "@/components/animations/EagleBoxVideoHero";
 import { EmptyState } from "@/components/EmptyState";
 import { FixtureCard } from "@/components/FixtureCard";
@@ -31,35 +31,22 @@ import { PageHeader } from "@/components/PageHeader";
 import { PointsTableView } from "@/components/PointsTableView";
 import { SmartAssistantPanel } from "@/components/SmartAssistantPanel";
 import { StatCard } from "@/components/StatCard";
+import { TeamPerformanceChart } from "@/components/TeamPerformanceChart";
 import { useToast } from "@/components/ToastProvider";
+import { useAutomatedInsights } from "@/hooks/useAutomatedInsights";
 import { getFixtureResult, isCompletedFixture } from "@/lib/points";
 import {
   generateAlerts,
-  generateSmartSummary,
   getActivities,
+  getCurrentRole,
   getDashboardStats,
   getFixtures,
-  getMatchResults,
   getPointsTable,
   getReports,
-  getTeams,
-  resetAllData
+  getTeams
 } from "@/lib/storage";
-import type { ActivityItem, AlertItem, DashboardStats, Fixture, PointsRow, SmartSummary, Team } from "@/lib/types";
-import { formatDateTime, formatScore, getFixtureTitle, isResultStatus } from "@/lib/utils";
-
-function isSmartSummary(value: unknown): value is SmartSummary {
-  if (!value || typeof value !== "object") return false;
-  const summary = value as SmartSummary;
-  return (
-    (summary.mode === "gemini" || summary.mode === "rule-based") &&
-    typeof summary.summary === "string" &&
-    Array.isArray(summary.insights) &&
-    Array.isArray(summary.recommendedActions) &&
-    Array.isArray(summary.risks) &&
-    typeof summary.generatedAt === "string"
-  );
-}
+import type { ActivityItem, AlertItem, DashboardStats, Fixture, PointsRow, Team } from "@/lib/types";
+import { formatDateTime, formatScore, getActiveFixtures, getActiveTeams, getFixtureTitle, isResultStatus } from "@/lib/utils";
 
 export default function DashboardPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -67,66 +54,48 @@ export default function DashboardPage() {
   const [pointsTable, setPointsTable] = useState<PointsRow[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [summary, setSummary] = useState<SmartSummary | null>(null);
+  const [role, setRole] = useState<"Admin" | "Viewer" | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     totalTeams: 0,
     totalFixtures: 0,
     upcomingMatches: 0,
     completedMatches: 0,
     pendingResults: 0,
-    leaderTeamName: "No leader yet",
-    bestNrr: "N/A",
+    leaderTeamName: "No completed matches yet",
+    bestNrr: "No NRR yet",
     reportsGenerated: 0,
     alertsCount: 0,
     databaseStatus: "Local demo"
   });
-  const [resetOpen, setResetOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [assistantLoading, setAssistantLoading] = useState(false);
+  const {
+    insights: automatedInsights,
+    loading: insightsLoading,
+    generating: insightsGenerating,
+    regenerate: regenerateInsights
+  } = useAutomatedInsights({ generateOnMount: true, useRemoteOnMount: true });
   const { showToast } = useToast();
 
   const loadData = async () => {
-    const nextTeams = getTeams();
-    const nextFixtures = getFixtures();
-    const nextPoints = getPointsTable();
-    const nextReports = getReports();
-    const nextResults = getMatchResults();
-    const nextAlerts = generateAlerts(nextTeams, nextFixtures, nextReports);
-    const localSummary = generateSmartSummary(nextTeams, nextFixtures, nextPoints, nextReports);
-    setTeams(nextTeams);
-    setFixtures(nextFixtures);
+    const [nextTeams, nextFixtures, nextPoints, nextReports, nextActivities, nextStats] = await Promise.all([
+      getTeams(),
+      getFixtures(),
+      getPointsTable(),
+      getReports(),
+      getActivities(),
+      getDashboardStats()
+    ]);
+    const activeTeams = getActiveTeams(nextTeams);
+    const activeFixtures = getActiveFixtures(nextFixtures, nextTeams);
+    const nextAlerts = generateAlerts(activeTeams, activeFixtures, nextReports);
+    setTeams(activeTeams);
+    setFixtures(activeFixtures);
     setPointsTable(nextPoints);
-    setActivities(getActivities());
+    setActivities(nextActivities);
     setAlerts(nextAlerts);
-    setSummary(localSummary);
-    setStats(getDashboardStats());
+    setStats(nextStats);
+    setRole(getCurrentRole());
     setLoading(false);
-
-    setAssistantLoading(true);
-    try {
-      const response = await fetch("/api/smart-summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teams: nextTeams,
-          fixtures: nextFixtures,
-          results: nextResults,
-          pointsTable: nextPoints,
-          alerts: nextAlerts,
-          reports: nextReports,
-          localSummary
-        })
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      if (isSmartSummary(data)) {
-        setSummary(data);
-      }
-    } catch {
-      setSummary(localSummary);
-    } finally {
-      setAssistantLoading(false);
-    }
   };
 
   useEffect(() => {
@@ -151,15 +120,15 @@ export default function DashboardPage() {
     [fixtures]
   );
 
-  const handleReset = () => {
-    resetAllData();
-    setResetOpen(false);
-    void loadData();
-    showToast({
-      type: "success",
-      title: "Demo data reset",
-      description: "Six teams, eight fixtures, results, reports, and alerts are ready."
-    });
+  const handleShareScoreboard = async () => {
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const scoreboardUrl = `${baseUrl}/scoreboard`;
+    try {
+      await navigator.clipboard.writeText(scoreboardUrl);
+      showToast({ type: "success", title: "Scoreboard link copied." });
+    } catch {
+      showToast({ type: "error", title: "Copy failed", description: scoreboardUrl });
+    }
   };
 
   return (
@@ -169,13 +138,13 @@ export default function DashboardPage() {
       ) : (
         <>
           <PageHeader
-            title="Fixture & Points Table Manager"
+            title="Cricket Tournament Operations Platform"
             breadcrumb="Dashboard"
-            description="Eagle Box Cricket operations dashboard for teams, fixtures, results, points, workflow, reports, and smart insights."
+            description="Centralized cricket operations platform for fixtures, results, standings, reports, and team performance."
             actions={
-              <button type="button" onClick={() => setResetOpen(true)} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
-                <DatabaseZap className="h-4 w-4" />
-                Reset Demo Data
+              <button type="button" onClick={handleShareScoreboard} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
+                <Share2 className="h-4 w-4" />
+                Share Scoreboard
               </button>
             }
           />
@@ -184,41 +153,49 @@ export default function DashboardPage() {
             <div className="grid items-center gap-6 lg:grid-cols-[1.15fr_0.85fr]">
               <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }}>
                 <p className="text-sm font-black uppercase tracking-[0.28em] text-emerald-200">
-                  Eagle Box Cricket
+                  EAGLE BOX CRICKET
                 </p>
                 <h2 className="mt-3 text-3xl font-black leading-tight text-white md:text-5xl">
-                  Tournament control room for a 26-working-day internship deliverable.
+                  Cricket Tournament Operations Platform
                 </h2>
                 <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 md:text-base">
-                  Manage the full cricket operations loop: teams, fixtures, result entry, automatic standings, workflow transitions, reports, alerts, and rule-based AI recommendations.
+                  Manage teams, schedule fixtures, record results, automate standings, track workflows, and publish live scoreboards from one control room.
                 </p>
                 <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-amber-200">
                   Quick Actions
                 </p>
                 <div className="mt-3 flex flex-wrap gap-3">
-                  <Link href="/teams" className="premium-button flex items-center gap-2 px-4 py-3 text-sm">
-                    <Plus className="h-4 w-4" />
-                    Add Team
-                  </Link>
-                  <Link href="/fixtures" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
-                    <CalendarDays className="h-4 w-4" />
-                    Create Fixture
-                  </Link>
-                  <Link href="/workflow" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
-                    <RefreshCw className="h-4 w-4" />
-                    Workflow
-                  </Link>
-                  <Link href="/results" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
-                    <Trophy className="h-4 w-4" />
-                    Enter Result
-                  </Link>
+                  {role === "Admin" ? (
+                    <>
+                      <Link href="/teams" className="premium-button flex items-center gap-2 px-4 py-3 text-sm">
+                        <Plus className="h-4 w-4" />
+                        Add Team
+                      </Link>
+                      <Link href="/fixtures" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
+                        <CalendarDays className="h-4 w-4" />
+                        Create Fixture
+                      </Link>
+                      <Link href="/workflow" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
+                        <RefreshCw className="h-4 w-4" />
+                        View Workflow
+                      </Link>
+                      <Link href="/results" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
+                        <Trophy className="h-4 w-4" />
+                        Enter Result
+                      </Link>
+                    </>
+                  ) : null}
                   <Link href="/reports" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
                     <BarChart3 className="h-4 w-4" />
                     Generate Report
                   </Link>
-                  <button type="button" onClick={() => setResetOpen(true)} className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
-                    <DatabaseZap className="h-4 w-4" />
-                    Reset Demo Data
+                  <Link href="/standings" className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
+                    <Medal className="h-4 w-4" />
+                    View Standings
+                  </Link>
+                  <button type="button" onClick={handleShareScoreboard} className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">
+                    <Share2 className="h-4 w-4" />
+                    Share Scoreboard
                   </button>
                 </div>
               </motion.div>
@@ -240,7 +217,13 @@ export default function DashboardPage() {
           </section>
 
           <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <SmartAssistantPanel summary={summary} loading={assistantLoading} onRefresh={() => void loadData()} />
+            <SmartAssistantPanel
+              insights={automatedInsights}
+              loading={insightsLoading}
+              generating={insightsGenerating}
+              onRefresh={regenerateInsights}
+              variant="preview"
+            />
             <GlassCard className="min-w-0 p-5" hover={false}>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-xl font-black text-white">Alerts & Reminders</h2>
@@ -267,7 +250,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState title="No upcoming fixtures" description="Create a fixture or reset demo data to fill the schedule." />
+                <EmptyState title="No fixtures scheduled yet" description="Create your first fixture." />
               )}
             </GlassCard>
 
@@ -314,7 +297,7 @@ export default function DashboardPage() {
               {pointsTable.length > 0 ? (
                 <PointsTableView pointsTable={pointsTable.slice(0, 4)} teams={teams} compact />
               ) : (
-                <EmptyState title="No standings yet" description="Add teams or reset demo data to initialize the table." />
+                <EmptyState title="No completed matches yet" description="Enter results to generate standings." />
               )}
             </GlassCard>
 
@@ -335,14 +318,17 @@ export default function DashboardPage() {
             </GlassCard>
           </section>
 
-          <ConfirmDialog
-            open={resetOpen}
-            title="Reset demo data?"
-            description="This clears current local teams, fixtures, reports, activity, and standings, then reloads the internship-ready Eagle Box Cricket sample data."
-            confirmText="Reset"
-            onClose={() => setResetOpen(false)}
-            onConfirm={handleReset}
-          />
+          <section className="mt-6">
+            <GlassCard className="p-5" hover={false}>
+              <h2 className="mb-4 text-xl font-black text-white">Team Performance</h2>
+              {pointsTable.length > 0 ? (
+                <TeamPerformanceChart pointsTable={pointsTable} teams={teams} />
+              ) : (
+                <EmptyState title="No chart data" description="Standings will populate the chart after teams are loaded." />
+              )}
+            </GlassCard>
+          </section>
+
         </>
       )}
     </AppShell>

@@ -1,14 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CalendarDays, Edit3, MapPin, Phone, Trash2, UserRound, UsersRound } from "lucide-react";
+import { Archive, CalendarDays, Edit3, MapPin, Phone, UserRound, UsersRound } from "lucide-react";
 import type { Team } from "@/lib/types";
 import { formatDate, getInitials } from "@/lib/utils";
 
 interface TeamCardProps {
   team: Team;
-  onEdit: (team: Team) => void;
-  onDelete: (team: Team) => void;
+  onEdit?: (team: Team) => void;
+  onDelete?: (team: Team) => void;
 }
 
 export function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
@@ -67,26 +67,32 @@ export function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
         </div>
       </div>
 
-      <div className="mt-5 flex gap-2">
-        <button
-          type="button"
-          title="Edit team"
-          onClick={() => onEdit(team)}
-          className="secondary-button flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-black"
-        >
-          <Edit3 className="h-4 w-4" />
-          Edit
-        </button>
-        <button
-          type="button"
-          title="Delete team"
-          onClick={() => onDelete(team)}
-          className="danger-button flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-black"
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete
-        </button>
-      </div>
+      {onEdit || onDelete ? (
+        <div className="mt-5 flex gap-2">
+          {onEdit ? (
+            <button
+              type="button"
+              title="Edit team"
+              onClick={() => onEdit(team)}
+              className="secondary-button flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-black"
+            >
+              <Edit3 className="h-4 w-4" />
+              Edit
+            </button>
+          ) : null}
+          {onDelete ? (
+            <button
+              type="button"
+              title="Archive team"
+              onClick={() => onDelete(team)}
+              className="danger-button flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm font-black"
+            >
+              <Archive className="h-4 w-4" />
+              Archive
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </motion.article>
   );
 }

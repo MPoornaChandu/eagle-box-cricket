@@ -4,28 +4,25 @@ import { FormEvent, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { LockKeyhole, LogIn, Mail, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { ensureDemoData, isLoggedIn, login } from "@/lib/storage";
+import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useToast } from "@/components/ToastProvider";
 
 export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { authLoading, isAuthenticated, signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (isLoggedIn()) {
+    if (!authLoading && isAuthenticated) {
       router.replace("/");
-      return;
     }
+  }, [authLoading, isAuthenticated, router]);
 
-    setChecking(false);
-  }, [router]);
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
 
@@ -34,12 +31,13 @@ export default function LoginPage() {
       return;
     }
 
-    if (!login(email, password)) {
-      setError("Invalid demo credentials.");
+    const session = await signIn(email, password);
+    if (!session) {
+      setError("Invalid credentials.");
       showToast({
         type: "error",
         title: "Login failed",
-        description: "Use the Eagle Box Cricket demo admin credentials."
+        description: "Use the Eagle Box Cricket Admin or Viewer credentials."
       });
       return;
     }
@@ -47,13 +45,12 @@ export default function LoginPage() {
     showToast({
       type: "success",
       title: "Login successful",
-      description: "Welcome to Eagle Box Cricket operations."
+      description: `Welcome ${session.role}.`
     });
-    ensureDemoData();
     router.replace("/");
   };
 
-  if (checking) {
+  if (authLoading || isAuthenticated) {
     return null;
   }
 
@@ -103,8 +100,8 @@ export default function LoginPage() {
               <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white">Admin Login</h2>
-              <p className="text-sm text-slate-400">Demo admin access</p>
+              <h2 className="text-2xl font-black text-white">Workspace Login</h2>
+              <p className="text-sm text-slate-400">Admin and Viewer access</p>
             </div>
           </div>
 
@@ -156,9 +153,11 @@ export default function LoginPage() {
           </button>
 
           <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
-            <p className="font-black text-white">Demo credentials</p>
+            <p className="font-black text-white">Sample credentials</p>
             <p className="mt-2">Email: admin@eaglebox.com</p>
             <p>Password: admin123</p>
+            <p className="mt-3">Email: viewer@eaglebox.com</p>
+            <p>Password: viewer123</p>
           </div>
         </form>
       </motion.div>

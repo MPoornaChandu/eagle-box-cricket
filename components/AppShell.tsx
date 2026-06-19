@@ -6,11 +6,11 @@ import { motion } from "framer-motion";
 import { AuthGuard } from "./AuthGuard";
 import { Sidebar } from "./Sidebar";
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, adminOnly = false }: { children: ReactNode; adminOnly?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <AuthGuard>
+    <AuthGuard adminOnly={adminOnly}>
       <div className="min-h-screen">
         <Sidebar
           mobileOpen={mobileOpen}
@@ -24,7 +24,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <div className="mx-auto max-w-7xl">{children}</div>
           <footer className="app-footer mt-10 rounded-lg px-4 py-4 text-center text-xs font-semibold text-slate-500">
-            Eagle Box Cricket &bull; Fixture & Points Table Manager
+            Eagle Box Cricket &bull; Tournament Operations Platform
           </footer>
         </motion.main>
       </div>

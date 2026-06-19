@@ -48,9 +48,25 @@ export function getTeamById(teams: Team[], teamId: string): Team | undefined {
   return teams.find((team) => team.id === teamId);
 }
 
+export function isActiveTeam(team: Team | undefined | null): team is Team {
+  return team?.status === "Active";
+}
+
+export function getActiveTeams(teams: Team[]): Team[] {
+  return teams.filter(isActiveTeam);
+}
+
+export function isFixtureForActiveTeams(fixture: Fixture, teams: Team[]): boolean {
+  return isActiveTeam(getTeamById(teams, fixture.teamAId)) && isActiveTeam(getTeamById(teams, fixture.teamBId));
+}
+
+export function getActiveFixtures(fixtures: Fixture[], teams: Team[]): Fixture[] {
+  return fixtures.filter((fixture) => isFixtureForActiveTeams(fixture, teams));
+}
+
 export function getTeamName(teams: Team[], teamId?: string): string {
   if (!teamId) return "Tie / No result";
-  return getTeamById(teams, teamId)?.name ?? "Deleted Team";
+  return getTeamById(teams, teamId)?.name ?? "Unknown Team";
 }
 
 export function getInitials(name: string, fallback = "EB"): string {
@@ -77,9 +93,10 @@ export function getFixtureTitle(fixture: Fixture, teams: Team[]): string {
 }
 
 export function getLeaderName(teams: Team[], pointsTable: PointsRow[]): string {
-  const leader = pointsTable[0];
+  const activeTeamIds = new Set(getActiveTeams(teams).map((team) => team.id));
+  const leader = pointsTable.find((row) => row.played > 0 && activeTeamIds.has(row.teamId));
   if (!leader || leader.played === 0) {
-    return "No leader yet";
+    return "No completed matches yet";
   }
 
   return getTeamName(teams, leader.teamId);

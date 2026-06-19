@@ -58,6 +58,12 @@ export function FixtureCard({ fixture, teams, onEdit, onDelete, compact = false 
               {fixture.venue}
             </p>
             {fixture.notes ? <p className="text-xs leading-5 text-slate-400">{fixture.notes}</p> : null}
+            {fixture.tossWinnerTeamId ? (
+              <p className="text-xs font-semibold text-amber-100">
+                Toss: {getTeamName(teams, fixture.tossWinnerTeamId)}
+                {fixture.electedTo ? ` elected to ${fixture.electedTo.toLowerCase()}` : ""}
+              </p>
+            ) : null}
           </div>
         </div>
 

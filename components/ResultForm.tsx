@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Save } from "lucide-react";
-import { getFixtureResult } from "@/lib/points";
-import type { Fixture, ResultInput, ResultType, Team } from "@/lib/types";
-import { parseCricketOversToDecimal } from "@/lib/points";
+import { Plus, Save, Trash2 } from "lucide-react";
+import { ballsToOversText, getFixtureResult, parseCricketOversToDecimal, parseOversToBalls } from "@/lib/points";
+import type { Fixture, PlayerBattingStat, PlayerBowlingStat, ResultInput, ResultType, Team, TossDecision } from "@/lib/types";
 import { submitFixtureResult } from "@/lib/storage";
 import { getTeamName } from "@/lib/utils";
 import { useToast } from "./ToastProvider";
@@ -12,6 +11,8 @@ import { useToast } from "./ToastProvider";
 interface ResultFormProps {
   fixture: Fixture;
   teams: Team[];
+  battingStats?: PlayerBattingStat[];
+  bowlingStats?: PlayerBowlingStat[];
   onSubmitted: (fixtures: Fixture[], celebrationText: string) => void;
 }
 
@@ -22,12 +23,31 @@ interface ResultFormState {
   teamBWickets: string;
   teamAOvers: string;
   teamBOvers: string;
+  tossWinnerTeamId: string;
+  electedTo: string;
   resultType: ResultType;
   winnerTeamId: string;
   playerOfMatch: string;
   fours: string;
   sixes: string;
   notes: string;
+}
+
+interface BattingRowState {
+  id: string;
+  playerName: string;
+  teamId: string;
+  runs: string;
+  balls: string;
+}
+
+interface BowlingRowState {
+  id: string;
+  playerName: string;
+  teamId: string;
+  overs: string;
+  wickets: string;
+  runsGiven: string;
 }
 
 function emptyStateForFixture(fixture: Fixture): ResultFormState {
@@ -39,6 +59,8 @@ function emptyStateForFixture(fixture: Fixture): ResultFormState {
     teamBWickets: result ? String(result.teamBWickets) : "",
     teamAOvers: result?.teamAOvers ?? "",
     teamBOvers: result?.teamBOvers ?? "",
+    tossWinnerTeamId: fixture.tossWinnerTeamId ?? "",
+    electedTo: fixture.electedTo ?? "",
     resultType: result?.resultType ?? "Normal win",
     winnerTeamId: result?.winnerTeamId ?? "",
     playerOfMatch: result?.playerOfMatch ?? "",
@@ -46,6 +68,11 @@ function emptyStateForFixture(fixture: Fixture): ResultFormState {
     sixes: String(fixture.sixes ?? 0),
     notes: result?.notes ?? fixture.notes ?? ""
   };
+}
+
+function createRowId(prefix: string): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `${prefix}-${crypto.randomUUID()}`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function toNumber(value: string): number {
@@ -76,8 +103,10 @@ function validateWickets(value: string, label: string, required = true): string 
   return "";
 }
 
-export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
+export function ResultForm({ fixture, teams, battingStats = [], bowlingStats = [], onSubmitted }: ResultFormProps) {
   const [form, setForm] = useState<ResultFormState>(() => emptyStateForFixture(fixture));
+  const [battingRows, setBattingRows] = useState<BattingRowState[]>([]);
+  const [bowlingRows, setBowlingRows] = useState<BowlingRowState[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { showToast } = useToast();
 
@@ -86,8 +115,31 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
 
   useEffect(() => {
     setForm(emptyStateForFixture(fixture));
+    setBattingRows(
+      battingStats
+        .filter((stat) => stat.fixtureId === fixture.id)
+        .map((stat) => ({
+          id: stat.id,
+          playerName: stat.playerName,
+          teamId: stat.teamId,
+          runs: String(stat.runs),
+          balls: String(stat.balls)
+        }))
+    );
+    setBowlingRows(
+      bowlingStats
+        .filter((stat) => stat.fixtureId === fixture.id)
+        .map((stat) => ({
+          id: stat.id,
+          playerName: stat.playerName,
+          teamId: stat.teamId,
+          overs: ballsToOversText(stat.oversBalls),
+          wickets: String(stat.wickets),
+          runsGiven: String(stat.runsGiven)
+        }))
+    );
     setErrors({});
-  }, [fixture]);
+  }, [battingStats, bowlingStats, fixture]);
 
   // Auto-select winner / suggest tie based on scores
   useEffect(() => {
@@ -135,6 +187,30 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
     setErrors((current) => ({ ...current, [field]: "" }));
   };
 
+  const addBattingRow = () => {
+    setBattingRows((current) => [
+      ...current,
+      { id: createRowId("bat"), playerName: "", teamId: fixture.teamAId, runs: "", balls: "" }
+    ]);
+  };
+
+  const addBowlingRow = () => {
+    setBowlingRows((current) => [
+      ...current,
+      { id: createRowId("bowl"), playerName: "", teamId: fixture.teamBId, overs: "", wickets: "", runsGiven: "" }
+    ]);
+  };
+
+  const updateBattingRow = (rowId: string, field: keyof BattingRowState, value: string) => {
+    setBattingRows((current) => current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)));
+    setErrors((current) => ({ ...current, [`bat-${rowId}`]: "" }));
+  };
+
+  const updateBowlingRow = (rowId: string, field: keyof BowlingRowState, value: string) => {
+    setBowlingRows((current) => current.map((row) => (row.id === rowId ? { ...row, [field]: value } : row)));
+    setErrors((current) => ({ ...current, [`bowl-${rowId}`]: "" }));
+  };
+
   const validateForm = (): boolean => {
     const scoreRequired = form.resultType !== "No result" && form.resultType !== "Walkover";
     const oversRequired = scoreRequired;
@@ -176,6 +252,44 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
       nextErrors.winnerTeamId = "Winner must be one of the fixture teams.";
     }
 
+    if (!form.tossWinnerTeamId) {
+      nextErrors.tossWinnerTeamId = "Toss winner is required.";
+    } else if (![fixture.teamAId, fixture.teamBId].includes(form.tossWinnerTeamId)) {
+      nextErrors.tossWinnerTeamId = "Toss winner must be one of the fixture teams.";
+    }
+
+    if (!form.electedTo) {
+      nextErrors.electedTo = "Elected to is required.";
+    } else if (form.electedTo !== "Bat" && form.electedTo !== "Field") {
+      nextErrors.electedTo = "Choose Bat or Field.";
+    }
+
+    battingRows.forEach((row) => {
+      const rowHasData = row.playerName.trim() || row.runs.trim() || row.balls.trim();
+      if (!rowHasData) return;
+      const rowError =
+        !row.playerName.trim()
+          ? "Batter name is required."
+          : validateNonNegativeInteger(row.runs, "Batter runs") ||
+            validateNonNegativeInteger(row.balls, "Batter balls");
+      if (rowError) nextErrors[`bat-${row.id}`] = rowError;
+    });
+
+    bowlingRows.forEach((row) => {
+      const rowHasData = row.playerName.trim() || row.overs.trim() || row.wickets.trim() || row.runsGiven.trim();
+      if (!rowHasData) return;
+      const rowError =
+        !row.playerName.trim()
+          ? "Bowler name is required."
+          : row.overs.trim()
+            ? validateOvers(row.overs)
+            : "Bowler overs is required.";
+      const numericError =
+        validateWickets(row.wickets, "Bowler wickets") ||
+        validateNonNegativeInteger(row.runsGiven, "Runs given");
+      if (rowError || numericError) nextErrors[`bowl-${row.id}`] = rowError || numericError;
+    });
+
     const compactErrors = Object.fromEntries(
       Object.entries(nextErrors).filter(([, value]) => Boolean(value))
     );
@@ -184,7 +298,7 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
     return Object.keys(compactErrors).length === 0;
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!validateForm()) {
@@ -204,16 +318,35 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
       teamBWickets: toNumber(form.teamBWickets),
       teamAOvers: form.teamAOvers.trim() || "0",
       teamBOvers: form.teamBOvers.trim() || "0",
+      tossWinnerTeamId: form.tossWinnerTeamId || undefined,
+      electedTo: (form.electedTo || undefined) as TossDecision | undefined,
       resultType: form.resultType,
       winnerTeamId,
       playerOfMatch: form.playerOfMatch.trim() || undefined,
       fours: toNumber(form.fours),
       sixes: toNumber(form.sixes),
-      notes: form.notes.trim() || undefined
+      notes: form.notes.trim() || undefined,
+      battingStats: battingRows
+        .filter((row) => row.playerName.trim() || row.runs.trim() || row.balls.trim())
+        .map((row) => ({
+          playerName: row.playerName.trim(),
+          teamId: row.teamId,
+          runs: toNumber(row.runs),
+          balls: toNumber(row.balls)
+        })),
+      bowlingStats: bowlingRows
+        .filter((row) => row.playerName.trim() || row.overs.trim() || row.wickets.trim() || row.runsGiven.trim())
+        .map((row) => ({
+          playerName: row.playerName.trim(),
+          teamId: row.teamId,
+          oversBalls: parseOversToBalls(row.overs),
+          wickets: toNumber(row.wickets),
+          runsGiven: toNumber(row.runsGiven)
+        }))
     };
 
     try {
-      const nextFixtures = submitFixtureResult(fixture.id, resultData);
+      const nextFixtures = await submitFixtureResult(fixture.id, resultData);
       const resolvedWinner =
         resultData.winnerTeamId ??
         (resultData.teamAScore > resultData.teamBScore
@@ -259,9 +392,27 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
         </div>
       </div>
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-3">
+      <div className="mb-4 grid gap-4 lg:grid-cols-5">
         <label className="field-label">
-          Result type
+          Toss won by <span className="text-red-200">*</span>
+          <select value={form.tossWinnerTeamId} onChange={(event) => handleChange("tossWinnerTeamId", event.target.value)}>
+            <option value="">Select team</option>
+            <option value={fixture.teamAId}>{teamAName}</option>
+            <option value={fixture.teamBId}>{teamBName}</option>
+          </select>
+          {errors.tossWinnerTeamId ? <span className="text-xs text-red-200">{errors.tossWinnerTeamId}</span> : null}
+        </label>
+        <label className="field-label">
+          Elected to <span className="text-red-200">*</span>
+          <select value={form.electedTo} onChange={(event) => handleChange("electedTo", event.target.value)}>
+            <option value="">Select</option>
+            <option value="Bat">Bat</option>
+            <option value="Field">Field</option>
+          </select>
+          {errors.electedTo ? <span className="text-xs text-red-200">{errors.electedTo}</span> : null}
+        </label>
+        <label className="field-label">
+          Result type <span className="text-red-200">*</span>
           <select value={form.resultType} onChange={(event) => handleChange("resultType", event.target.value as ResultType)}>
             {(["Normal win", "Tie", "No result", "Walkover"] as ResultType[]).map((type) => (
               <option key={type} value={type}>
@@ -348,6 +499,90 @@ export function ResultForm({ fixture, teams, onSubmitted }: ResultFormProps) {
           <textarea data-testid="match-notes" rows={3} value={form.notes} onChange={(event) => handleChange("notes", event.target.value)} placeholder="Optional umpire notes or innings context" />
         </label>
       </div>
+
+      <section className="mt-5 rounded-lg border border-white/10 bg-white/[0.035] p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-black text-white">Batters</h3>
+          <button type="button" onClick={addBattingRow} className="secondary-button flex items-center gap-2 px-3 py-2 text-xs font-black">
+            <Plus className="h-4 w-4" />
+            Add Batter
+          </button>
+        </div>
+        <div className="grid gap-3">
+          {battingRows.length === 0 ? <p className="text-sm text-slate-400">No batting rows added.</p> : null}
+          {battingRows.map((row) => (
+            <div key={row.id} className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 lg:grid-cols-[1.2fr_1fr_0.7fr_0.7fr_auto]">
+              <label className="field-label">
+                Player <span className="text-red-200">*</span>
+                <input value={row.playerName} onChange={(event) => updateBattingRow(row.id, "playerName", event.target.value)} placeholder="Batter name" />
+              </label>
+              <label className="field-label">
+                Team
+                <select value={row.teamId} onChange={(event) => updateBattingRow(row.id, "teamId", event.target.value)}>
+                  <option value={fixture.teamAId}>{teamAName}</option>
+                  <option value={fixture.teamBId}>{teamBName}</option>
+                </select>
+              </label>
+              <label className="field-label">
+                Runs
+                <input type="number" min="0" value={row.runs} onChange={(event) => updateBattingRow(row.id, "runs", event.target.value)} placeholder="0" />
+              </label>
+              <label className="field-label">
+                Balls
+                <input type="number" min="0" value={row.balls} onChange={(event) => updateBattingRow(row.id, "balls", event.target.value)} placeholder="0" />
+              </label>
+              <button type="button" aria-label="Remove batter" onClick={() => setBattingRows((current) => current.filter((item) => item.id !== row.id))} className="danger-button self-end px-3 py-3">
+                <Trash2 className="h-4 w-4" />
+              </button>
+              {errors[`bat-${row.id}`] ? <p className="text-xs font-semibold text-red-200 lg:col-span-5">{errors[`bat-${row.id}`]}</p> : null}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-5 rounded-lg border border-white/10 bg-white/[0.035] p-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-black text-white">Bowlers</h3>
+          <button type="button" onClick={addBowlingRow} className="secondary-button flex items-center gap-2 px-3 py-2 text-xs font-black">
+            <Plus className="h-4 w-4" />
+            Add Bowler
+          </button>
+        </div>
+        <div className="grid gap-3">
+          {bowlingRows.length === 0 ? <p className="text-sm text-slate-400">No bowling rows added.</p> : null}
+          {bowlingRows.map((row) => (
+            <div key={row.id} className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 lg:grid-cols-[1.2fr_1fr_0.7fr_0.7fr_0.7fr_auto]">
+              <label className="field-label">
+                Player <span className="text-red-200">*</span>
+                <input value={row.playerName} onChange={(event) => updateBowlingRow(row.id, "playerName", event.target.value)} placeholder="Bowler name" />
+              </label>
+              <label className="field-label">
+                Team
+                <select value={row.teamId} onChange={(event) => updateBowlingRow(row.id, "teamId", event.target.value)}>
+                  <option value={fixture.teamAId}>{teamAName}</option>
+                  <option value={fixture.teamBId}>{teamBName}</option>
+                </select>
+              </label>
+              <label className="field-label">
+                Overs
+                <input type="text" inputMode="decimal" value={row.overs} onChange={(event) => updateBowlingRow(row.id, "overs", event.target.value)} placeholder="4.0" />
+              </label>
+              <label className="field-label">
+                Wickets
+                <input type="number" min="0" max="10" value={row.wickets} onChange={(event) => updateBowlingRow(row.id, "wickets", event.target.value)} placeholder="0" />
+              </label>
+              <label className="field-label">
+                Runs given
+                <input type="number" min="0" value={row.runsGiven} onChange={(event) => updateBowlingRow(row.id, "runsGiven", event.target.value)} placeholder="0" />
+              </label>
+              <button type="button" aria-label="Remove bowler" onClick={() => setBowlingRows((current) => current.filter((item) => item.id !== row.id))} className="danger-button self-end px-3 py-3">
+                <Trash2 className="h-4 w-4" />
+              </button>
+              {errors[`bowl-${row.id}`] ? <p className="text-xs font-semibold text-red-200 lg:col-span-6">{errors[`bowl-${row.id}`]}</p> : null}
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="mt-5 flex justify-end">
         <button type="submit" data-testid="submit-result" className="premium-button flex items-center gap-2 px-5 py-3">

@@ -7,23 +7,24 @@ import { GlassCard } from "@/components/GlassCard";
 import { PageHeader } from "@/components/PageHeader";
 
 const features = [
-  "Admin login with browser-persisted demo session",
+  "Admin and Viewer login with browser-persisted role session",
   "Dark and light theme toggle with saved preference",
   "Teams CRUD with captain, coach, venue, contact, status, and logo color",
   "Fixtures CRUD with match ID, teams, date, time, venue, match type, status, toss winner, and notes",
-  "Match result entry with normal win, tie, no result, and walkover support",
+  "Match result entry with toss, elected-to, normal win, tie, no result, and walkover support",
+  "Player batting and bowling scorecard rows linked to fixtures",
   "Cricket overs validation that rejects 4.6, 10.8, and 15.9",
-  "Automatic points table recalculation from completed fixtures",
+  "Automatic points table recalculation from completed fixtures and Tournament Settings",
   "Balls-based NRR, last-five form, and standings sorting",
+  "Public scoreboard and dedicated standings pages",
   "Workflow board with guarded transitions",
-  "Reports with points, fixtures, results CSV, print, mock PDF log, and history",
-  "Rule-based alerts and Gemini Smart Assistant insights with safe fallback",
-  "Test cases page for internship evaluation"
+  "Reports with top performers, points, fixtures, results CSV, print, PDF export log, and history",
+  "Automated insights with Gemini support and local operations insights",
+  "Quality checklist page for admin validation"
 ];
 
 const futureScope = [
   "Harden Supabase RLS policies with authenticated admin/scorer roles",
-  "Add admin, scorer, and viewer roles",
   "Generate real server-side PDF reports",
   "Add ball-by-ball innings tracking",
   "Add match media uploads with Supabase Storage"
@@ -57,17 +58,17 @@ export default function DocumentationPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Documentation"
+        title="System Documentation"
         breadcrumb="Dashboard / Documentation"
-        description="Presentation notes for the Eagle Box Cricket Fixture & Points Table Manager."
+        description="Admin documentation for the Eagle Box Cricket Tournament Operations Platform."
       />
 
       <div className="grid gap-6">
         <Section title="Project Overview">
           <p className="max-w-4xl text-sm leading-6 text-slate-300">
             Eagle Box Cricket is a cricket tournament operations dashboard for managing teams, fixtures,
-            result entry, automatic standings, workflow status, reports, alerts, and rule-based assistant
-            insights. It uses Supabase PostgreSQL when public keys are configured and falls back to local demo storage when keys are missing.
+            toss/result entry, player-level scorecards, automatic standings, workflow status, reports,
+            public scoreboard, role-based access, alerts, and automated insights. It uses Supabase PostgreSQL when public keys are configured and falls back to local demo storage when keys are missing.
           </p>
         </Section>
 
@@ -81,15 +82,15 @@ export default function DocumentationPage() {
           </Section>
           <Section title="Proposed Solution">
             <p className="text-sm leading-6 text-slate-300">
-              A typed Next.js dashboard with Supabase PostgreSQL sync, local demo fallback, validation-heavy
-              forms, automatic points calculation, workflow checks, exportable reports, and a professional dark/light UI.
+            A typed Next.js dashboard with Supabase PostgreSQL persistence, local demo mode, role-based access,
+            validation-heavy forms, automatic points calculation, workflow checks, exportable reports, and a professional dark/light UI.
             </p>
           </Section>
         </section>
 
         <Section title="Technology Stack">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {["Next.js", "React", "TypeScript", "Tailwind CSS", "Supabase PostgreSQL", "LocalStorage Fallback", "Framer Motion", "CSV / Print Export"].map((item) => (
+            {["Next.js", "React", "TypeScript", "Tailwind CSS", "Supabase PostgreSQL", "Local Demo Mode", "Framer Motion", "CSV / Print Export"].map((item) => (
               <div key={item} className="rounded-lg border border-white/10 bg-white/[0.04] p-4 text-sm font-black text-white">
                 {item}
               </div>
@@ -120,8 +121,7 @@ export default function DocumentationPage() {
           <Section title="Database Used">
             <p className="text-sm leading-6 text-slate-300">
               The project is Supabase/PostgreSQL-ready through public environment variables. If Supabase is
-              not configured, it automatically falls back to local demo storage so the Vercel demo and offline
-              internship evaluation still work.
+              not configured, the app uses local demo storage so previews and offline reviews still work.
             </p>
           </Section>
         </section>
@@ -129,23 +129,23 @@ export default function DocumentationPage() {
         <section className="grid gap-6 xl:grid-cols-2">
           <Section title="Data Layer">
             <p className="text-sm leading-6 text-slate-300">
-              The helper layer provides <code className="text-emerald-200">getTeams</code>, <code className="text-emerald-200">saveTeams</code>, <code className="text-emerald-200">getFixtures</code>, <code className="text-emerald-200">saveFixtures</code>, <code className="text-emerald-200">getReports</code>, <code className="text-emerald-200">saveReports</code>, <code className="text-emerald-200">seedDemoData</code>, <code className="text-emerald-200">resetDemoData</code>, <code className="text-emerald-200">generateAlerts</code>, and <code className="text-emerald-200">generateSmartSummary</code>.
+              The helper layer provides <code className="text-emerald-200">getTeams</code>, <code className="text-emerald-200">saveTeams</code>, <code className="text-emerald-200">getFixtures</code>, <code className="text-emerald-200">saveFixtures</code>, <code className="text-emerald-200">getReports</code>, <code className="text-emerald-200">saveReports</code>, <code className="text-emerald-200">seedDemoData</code>, <code className="text-emerald-200">resetDemoData</code>, <code className="text-emerald-200">generateAlerts</code>, and <code className="text-emerald-200">buildRuleBasedInsights</code>.
             </p>
           </Section>
           <Section title="Database & API Configuration">
             <div className="grid gap-3 text-sm text-slate-300">
               <p><span className="font-black text-white">Primary database:</span> Supabase PostgreSQL.</p>
-              <p><span className="font-black text-white">Fallback:</span> localStorage demo mode when Supabase keys are empty.</p>
+              <p><span className="font-black text-white">Local mode:</span> localStorage demo mode when Supabase keys are empty.</p>
               <p><span className="font-black text-white">Supabase schema:</span> <code className="text-emerald-200">supabase/schema.sql</code>.</p>
               <p><span className="font-black text-white">Required public env:</span> <code className="text-emerald-200">NEXT_PUBLIC_SUPABASE_URL</code> and <code className="text-emerald-200">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code> or <code className="text-emerald-200">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.</p>
               <p><span className="font-black text-white">Server-only env:</span> <code className="text-emerald-200">SUPABASE_SERVICE_ROLE_KEY</code> and optional <code className="text-emerald-200">GEMINI_API_KEY</code>.</p>
-              <p>Smart Assistant calls <code className="text-emerald-200">/api/smart-summary</code>. Gemini is used only when <code className="text-emerald-200">GEMINI_API_KEY</code> exists; otherwise the route returns rule-based insights.</p>
+              <p>Automated Insights calls <code className="text-emerald-200">/api/insights</code>. Gemini is used only when <code className="text-emerald-200">GEMINI_API_KEY</code> exists; otherwise the route returns local operations insights.</p>
             </div>
           </Section>
         </section>
 
         <Section title="Architecture Diagram">
-          <Flow items={["Next.js Frontend", "Storage Service", "Supabase PostgreSQL or localStorage fallback", "Points Engine", "Reports + Smart Assistant"]} />
+          <Flow items={["Next.js Frontend", "Storage Service", "Supabase PostgreSQL or local demo mode", "Points Engine", "Reports + Automated Insights"]} />
         </Section>
 
         <Section title="System Status / QA Checklist">
@@ -157,7 +157,7 @@ export default function DocumentationPage() {
               "Fixtures loaded",
               "Results loaded",
               "Points table calculated",
-              "Smart Assistant working",
+              "Automated Insights working",
               "Reports available",
               "Build ready"
             ].map((item) => (
@@ -220,13 +220,13 @@ export default function DocumentationPage() {
             </div>
           </Section>
 
-          <Section title="Submission Checklist">
+          <Section title="Operations Checklist">
             <div className="grid gap-3">
               {[
                 "Run npm run build successfully",
                 "Use demo login admin@eaglebox.com / admin123",
-                "Reset demo data before evaluation",
-                "Show dashboard cards, quick actions, alerts, and Smart Assistant",
+                "Reset sample data before review",
+                "Show dashboard cards, quick actions, alerts, and Automated Insights",
                 "Create a fixture and enter a valid result",
                 "Test invalid overs such as 4.6",
                 "Show recalculated points table and NRR",

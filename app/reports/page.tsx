@@ -14,12 +14,15 @@ import { ballsToOversText, getFixtureResult, isCompletedFixture } from "@/lib/po
 import {
   addReportLog,
   generateAlerts,
+  getCurrentRole,
   getFixtures,
+  getPlayerBattingStats,
+  getPlayerBowlingStats,
   getPointsTable,
   getReports,
   getTeams
 } from "@/lib/storage";
-import type { AlertItem, Fixture, PointsRow, ReportLog, Team } from "@/lib/types";
+import type { AlertItem, Fixture, PlayerBattingStat, PlayerBowlingStat, PointsRow, ReportLog, Team } from "@/lib/types";
 import {
   downloadTextFile,
   escapeCsv,
@@ -28,6 +31,8 @@ import {
   formatNrr,
   formatScore,
   formatTime,
+  getActiveFixtures,
+  getActiveTeams,
   getFixtureTitle,
   getLeaderName,
   getTeamName,
@@ -41,6 +46,20 @@ interface ReportSummary {
   pendingMatches: number;
   currentLeader: string;
   bestNrrTeam: string;
+}
+
+interface BattingLeader {
+  playerName: string;
+  teamId: string;
+  matches: number;
+  runs: number;
+}
+
+interface BowlingLeader {
+  playerName: string;
+  teamId: string;
+  matches: number;
+  wickets: number;
 }
 
 function buildSummary(teams: Team[], fixtures: Fixture[], pointsTable: PointsRow[]): ReportSummary {
@@ -156,27 +175,40 @@ export default function ReportsPage() {
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [pointsTable, setPointsTable] = useState<PointsRow[]>([]);
   const [reports, setReports] = useState<ReportLog[]>([]);
+  const [battingStats, setBattingStats] = useState<PlayerBattingStat[]>([]);
+  const [bowlingStats, setBowlingStats] = useState<PlayerBowlingStat[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [role, setRole] = useState<"Admin" | "Viewer" | null>(null);
   const [reportGeneratedAt, setReportGeneratedAt] = useState("Preparing report timestamp");
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  const loadData = () => {
-    const nextTeams = getTeams();
-    const nextFixtures = getFixtures();
-    const nextPoints = getPointsTable();
-    const nextReports = getReports();
-    setTeams(nextTeams);
-    setFixtures(nextFixtures);
+  const loadData = async () => {
+    const [nextTeams, nextFixtures, nextPoints, nextReports, nextBatting, nextBowling] = await Promise.all([
+      getTeams(),
+      getFixtures(),
+      getPointsTable(),
+      getReports(),
+      getPlayerBattingStats(),
+      getPlayerBowlingStats()
+    ]);
+    const activeTeams = getActiveTeams(nextTeams);
+    const activeTeamIds = new Set(activeTeams.map((team) => team.id));
+    const activeFixtures = getActiveFixtures(nextFixtures, nextTeams);
+    const activeFixtureIds = new Set(activeFixtures.map((fixture) => fixture.id));
+    setTeams(activeTeams);
+    setFixtures(activeFixtures);
     setPointsTable(nextPoints);
     setReports(nextReports);
-    setAlerts(generateAlerts(nextTeams, nextFixtures, nextReports));
+    setBattingStats(nextBatting.filter((stat) => activeTeamIds.has(stat.teamId) && activeFixtureIds.has(stat.fixtureId)));
+    setBowlingStats(nextBowling.filter((stat) => activeTeamIds.has(stat.teamId) && activeFixtureIds.has(stat.fixtureId)));
+    setAlerts(generateAlerts(activeTeams, activeFixtures, nextReports));
+    setRole(getCurrentRole());
   };
 
   useEffect(() => {
-    loadData();
+    void loadData().finally(() => setLoading(false));
     setReportGeneratedAt(new Date().toLocaleString("en-IN"));
-    setLoading(false);
   }, []);
 
   const summary = useMemo(() => buildSummary(teams, fixtures, pointsTable), [teams, fixtures, pointsTable]);
@@ -188,49 +220,75 @@ export default function ReportsPage() {
     () => fixtures.filter((fixture) => !isResultStatus(fixture.status)).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)),
     [fixtures]
   );
+  const isAdminUser = role === "Admin";
 
-  const logReport = (type: ReportLog["type"], title: string, reportSummary: string) => {
-    addReportLog({ type, title, summary: reportSummary });
-    loadData();
+  const battingLeaders = useMemo(() => {
+    const map = new Map<string, BattingLeader>();
+    battingStats.forEach((stat) => {
+      const key = `${stat.playerName.toLowerCase()}-${stat.teamId}`;
+      const current = map.get(key) ?? { playerName: stat.playerName, teamId: stat.teamId, matches: 0, runs: 0 };
+      current.matches += 1;
+      current.runs += stat.runs;
+      map.set(key, current);
+    });
+    return Array.from(map.values()).sort((a, b) => b.runs - a.runs).slice(0, 5);
+  }, [battingStats]);
+
+  const bowlingLeaders = useMemo(() => {
+    const map = new Map<string, BowlingLeader>();
+    bowlingStats.forEach((stat) => {
+      const key = `${stat.playerName.toLowerCase()}-${stat.teamId}`;
+      const current = map.get(key) ?? { playerName: stat.playerName, teamId: stat.teamId, matches: 0, wickets: 0 };
+      current.matches += 1;
+      current.wickets += stat.wickets;
+      map.set(key, current);
+    });
+    return Array.from(map.values()).sort((a, b) => b.wickets - a.wickets).slice(0, 5);
+  }, [bowlingStats]);
+
+  const logReport = async (type: ReportLog["type"], title: string, reportSummary: string) => {
+    if (!isAdminUser) return;
+    await addReportLog({ type, title, summary: reportSummary });
+    await loadData();
   };
 
-  const handlePointsCsv = () => {
+  const handlePointsCsv = async () => {
     downloadTextFile("eagle-box-points-table.csv", pointsCsv(pointsTable, teams));
-    logReport("Points Table Report", "Exported points table CSV", "CSV export generated for full points table.");
+    await logReport("Points Table Report", "Exported points table CSV", "CSV export generated for full points table.");
     showToast({ type: "success", title: "CSV exported", description: "Points table CSV is ready." });
   };
 
-  const handleFixturesCsv = () => {
+  const handleFixturesCsv = async () => {
     downloadTextFile("eagle-box-fixtures.csv", fixturesCsv(fixtures, teams));
-    logReport("Fixtures Report", "Exported fixtures CSV", "CSV export generated for fixtures and results.");
+    await logReport("Fixtures Report", "Exported fixtures CSV", "CSV export generated for fixtures and results.");
     showToast({ type: "success", title: "CSV exported", description: "Fixtures CSV is ready." });
   };
 
-  const handleResultsCsv = () => {
+  const handleResultsCsv = async () => {
     downloadTextFile("eagle-box-results.csv", resultsCsv(fixtures, teams));
-    logReport("Results Report", "Exported results CSV", "CSV export generated for completed match scorecards.");
+    await logReport("Results Report", "Exported results CSV", "CSV export generated for completed match scorecards.");
     showToast({ type: "success", title: "CSV exported", description: "Results CSV is ready." });
   };
 
   const handleCopy = async () => {
     try {
       await copyText(buildPlainTextSummary(summary));
-      logReport("Tournament Summary", "Copied tournament summary", "Tournament summary copied for submission notes.");
+      await logReport("Tournament Summary", "Copied tournament summary", "Tournament summary copied for operations notes.");
       showToast({ type: "success", title: "Summary copied", description: "Tournament summary copied to clipboard." });
     } catch {
       showToast({ type: "error", title: "Copy failed", description: "Clipboard access was not available." });
     }
   };
 
-  const handlePrint = () => {
-    logReport("Tournament Summary", "Printed tournament report", "Print-friendly tournament report generated.");
+  const handlePrint = async () => {
+    await logReport("Tournament Summary", "Printed tournament report", "Print-friendly tournament report generated.");
     showToast({ type: "info", title: "Print dialog opening", description: "Save as PDF from the print dialog." });
     window.setTimeout(() => window.print(), 150);
   };
 
-  const handleMockPdf = () => {
-    logReport("Mock PDF Report", "Generated mock PDF report", "Mock PDF action logged. Use Print / Save as PDF for a browser PDF export.");
-    showToast({ type: "success", title: "Mock PDF generated", description: "Report history updated. Print remains available for a real PDF." });
+  const handlePdfLog = async () => {
+    await logReport("Tournament Summary", "Logged PDF export", "PDF export note added. Use Print Report to save a browser PDF.");
+    showToast({ type: "success", title: "PDF export logged", description: "Report history updated. Print Report remains available." });
   };
 
   return (
@@ -262,10 +320,12 @@ export default function ReportsPage() {
                     <ClipboardCopy className="h-4 w-4" />
                     Copy Summary
                   </button>
-                  <button type="button" onClick={handleMockPdf} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
+                  {isAdminUser ? (
+                  <button type="button" onClick={handlePdfLog} className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black">
                     <FileDown className="h-4 w-4" />
-                    Generate Mock PDF
+                    Log PDF Export
                   </button>
+                  ) : null}
                   <button type="button" onClick={handlePrint} className="premium-button flex items-center gap-2 px-4 py-2 text-sm">
                     <Printer className="h-4 w-4" />
                     Print Report
@@ -294,7 +354,46 @@ export default function ReportsPage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState title="No report history" description="Export, print, or generate a mock PDF to add history." />
+                <EmptyState title="No reports generated yet" description="Generate your first tournament report." />
+              )}
+            </GlassCard>
+          </section>
+
+          <section className="no-print mb-6 grid gap-6 xl:grid-cols-2">
+            <GlassCard className="p-5" hover={false}>
+              <h2 className="mb-4 text-xl font-black text-white">Top 5 Run Scorers</h2>
+              {battingLeaders.length > 0 ? (
+                <div className="grid gap-3">
+                  {battingLeaders.map((leader, index) => (
+                    <div key={`${leader.playerName}-${leader.teamId}`} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-black text-white">{index + 1}. {leader.playerName}</p>
+                        <p className="text-lg font-black text-emerald-100">{leader.runs}</p>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-300">{getTeamName(teams, leader.teamId)} - {leader.matches} match{leader.matches === 1 ? "" : "es"}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No batting stats" description="Add player batting rows in result entry." />
+              )}
+            </GlassCard>
+            <GlassCard className="p-5" hover={false}>
+              <h2 className="mb-4 text-xl font-black text-white">Top 5 Wicket Takers</h2>
+              {bowlingLeaders.length > 0 ? (
+                <div className="grid gap-3">
+                  {bowlingLeaders.map((leader, index) => (
+                    <div key={`${leader.playerName}-${leader.teamId}`} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-black text-white">{index + 1}. {leader.playerName}</p>
+                        <p className="text-lg font-black text-emerald-100">{leader.wickets}</p>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-300">{getTeamName(teams, leader.teamId)} - {leader.matches} match{leader.matches === 1 ? "" : "es"}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No bowling stats" description="Add player bowling rows in result entry." />
               )}
             </GlassCard>
           </section>

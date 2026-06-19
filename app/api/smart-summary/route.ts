@@ -19,7 +19,7 @@ type SmartSummaryPayload = {
   localSummary?: Partial<SmartSummary>;
 };
 
-const GEMINI_MODEL = "gemini-1.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
@@ -60,7 +60,16 @@ function formatNrr(value: number | undefined): string {
 
 function getTeamName(teams: Team[], teamId?: string): string {
   if (!teamId) return "Tie / No result";
-  return teams.find((team) => team.id === teamId)?.name ?? "Deleted Team";
+  return teams.find((team) => team.id === teamId)?.name ?? "Unknown Team";
+}
+
+function getActiveTeams(teams: Team[]): Team[] {
+  return teams.filter((team) => team.status === "Active");
+}
+
+function getActiveFixtures(fixtures: Fixture[], teams: Team[]): Fixture[] {
+  const activeTeamIds = new Set(getActiveTeams(teams).map((team) => team.id));
+  return fixtures.filter((fixture) => activeTeamIds.has(fixture.teamAId) && activeTeamIds.has(fixture.teamBId));
 }
 
 function hasResult(fixture: Fixture, resultFixtureIds: Set<string>): boolean {
@@ -98,10 +107,11 @@ function fallbackSummary(payload: SmartSummaryPayload): SmartSummary {
     };
   }
 
-  const teams = asArray<Team>(payload.teams);
-  const fixtures = asArray<Fixture>(payload.fixtures);
+  const teams = getActiveTeams(asArray<Team>(payload.teams));
+  const fixtures = getActiveFixtures(asArray<Fixture>(payload.fixtures), teams);
   const results = asArray<MatchResult & { fixtureId?: string }>(payload.results);
-  const pointsTable = asArray<PointsRow>(payload.pointsTable);
+  const activeTeamIds = new Set(teams.map((team) => team.id));
+  const pointsTable = asArray<PointsRow>(payload.pointsTable).filter((row) => activeTeamIds.has(row.teamId));
   const alerts = asArray<AlertItem>(payload.alerts);
   const reports = asArray<ReportLog>(payload.reports);
   const resultFixtureIds = new Set(results.map((result) => result.fixtureId).filter(Boolean) as string[]);
@@ -148,7 +158,7 @@ function fallbackSummary(payload: SmartSummaryPayload): SmartSummary {
     risks: [
       alerts.length > 0 ? `${alerts.length} alert${alerts.length === 1 ? " needs" : "s need"} attention.` : "No active alerts are blocking the workflow.",
       pendingResults > 0 ? "Pending results can make standings outdated." : "Standings are current for entered results.",
-      pendingReports > 0 ? "Completed matches without reports may look unfinished in demo review." : "Report workflow is clear for completed matches."
+      pendingReports > 0 ? "Completed matches without reports can leave operations history incomplete." : "Report workflow is clear for completed matches."
     ],
     generatedAt: new Date().toISOString()
   };
@@ -211,7 +221,7 @@ function parseGeminiText(text: string, fallback: SmartSummary): SmartSummary {
 
 function logMode(mode: SmartSummary["mode"]): void {
   if (process.env.NODE_ENV !== "production") {
-    console.info(`Smart summary mode: ${mode === "gemini" ? "Gemini" : "Rule-based fallback"}`);
+    console.info(`Smart summary mode: ${mode === "gemini" ? "Gemini" : "Local insights"}`);
   }
 }
 
@@ -219,6 +229,10 @@ export async function POST(request: Request) {
   const payload = (await request.json().catch(() => ({}))) as SmartSummaryPayload;
   const fallback = fallbackSummary(payload);
   const apiKey = process.env.GEMINI_API_KEY;
+  const activeTeams = getActiveTeams(asArray<Team>(payload.teams));
+  const activeFixtures = getActiveFixtures(asArray<Fixture>(payload.fixtures), activeTeams);
+  const activeFixtureIds = new Set(activeFixtures.map((fixture) => fixture.id));
+  const activeTeamIds = new Set(activeTeams.map((team) => team.id));
 
   if (!apiKey) {
     logMode("rule-based");
@@ -233,10 +247,12 @@ export async function POST(request: Request) {
       "Keep summary under 35 words. Use 3 to 5 insights, 2 to 3 recommendedActions, and 2 to 3 risks.",
       "Use the supplied tournament data only.",
       JSON.stringify({
-        teams: asArray<Team>(payload.teams),
-        fixtures: asArray<Fixture>(payload.fixtures),
-        results: asArray<MatchResult & { fixtureId?: string }>(payload.results),
-        pointsTable: asArray<PointsRow>(payload.pointsTable),
+        teams: activeTeams,
+        fixtures: activeFixtures,
+        results: asArray<MatchResult & { fixtureId?: string }>(payload.results).filter((result) =>
+          result.fixtureId ? activeFixtureIds.has(result.fixtureId) : true
+        ),
+        pointsTable: asArray<PointsRow>(payload.pointsTable).filter((row) => activeTeamIds.has(row.teamId)),
         alerts: asArray<AlertItem>(payload.alerts),
         reports: asArray<ReportLog>(payload.reports)
       })

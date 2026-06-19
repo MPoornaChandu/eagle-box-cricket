@@ -1,6 +1,6 @@
 # Fixture & Points Table Manager
 
-Premium internship demo web app for Eagle Box Cricket, a sports venue management company.
+Professional cricket tournament operations web app for Eagle Box Cricket, a sports venue management company.
 
 This app helps an admin manage cricket tournament teams, fixtures, match results, reports, and a simplified Net Run Rate based points table. It is built as a local-first demo, so it works immediately without database keys, backend setup, or paid services.
 

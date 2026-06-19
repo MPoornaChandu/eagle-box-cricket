@@ -12,9 +12,9 @@ import { PageHeader } from "@/components/PageHeader";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useToast } from "@/components/ToastProvider";
 import { getFixtureResult } from "@/lib/points";
-import { generateAlerts, getFixtures, getReports, getTeams, transitionFixtureStatus } from "@/lib/storage";
+import { generateAlerts, getCurrentRole, getFixtures, getReports, getTeams, transitionFixtureStatus } from "@/lib/storage";
 import type { AlertItem, Fixture, Team, WorkflowStatus } from "@/lib/types";
-import { formatDate, formatScore, formatTime, getFixtureTitle, statusBadgeClasses } from "@/lib/utils";
+import { formatDate, formatScore, formatTime, getActiveFixtures, getActiveTeams, getFixtureTitle, statusBadgeClasses } from "@/lib/utils";
 
 const columns: WorkflowStatus[] = ["Draft", "Scheduled", "Completed", "Points Updated", "Report Generated"];
 
@@ -26,21 +26,22 @@ export default function WorkflowPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [role, setRole] = useState<"Admin" | "Viewer" | null>(null);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
-  const loadData = () => {
-    const nextTeams = getTeams();
-    const nextFixtures = getFixtures();
-    const nextReports = getReports();
-    setTeams(nextTeams);
-    setFixtures(nextFixtures);
-    setAlerts(generateAlerts(nextTeams, nextFixtures, nextReports));
+  const loadData = async () => {
+    const [nextTeams, nextFixtures, nextReports] = await Promise.all([getTeams(), getFixtures(), getReports()]);
+    const activeTeams = getActiveTeams(nextTeams);
+    const activeFixtures = getActiveFixtures(nextFixtures, nextTeams);
+    setTeams(activeTeams);
+    setFixtures(activeFixtures);
+    setAlerts(generateAlerts(activeTeams, activeFixtures, nextReports));
+    setRole(getCurrentRole());
   };
 
   useEffect(() => {
-    loadData();
-    setLoading(false);
+    void loadData().finally(() => setLoading(false));
   }, []);
 
   const fixturesByColumn = useMemo(
@@ -61,11 +62,13 @@ export default function WorkflowPage() {
     [fixtures]
   );
 
-  const runTransition = (fixture: Fixture, nextStatus: WorkflowStatus) => {
+  const isAdminUser = role === "Admin";
+
+  const runTransition = async (fixture: Fixture, nextStatus: WorkflowStatus) => {
     try {
-      const nextFixtures = transitionFixtureStatus(fixture.id, nextStatus);
+      const nextFixtures = await transitionFixtureStatus(fixture.id, nextStatus);
       setFixtures(nextFixtures);
-      loadData();
+      await loadData();
       showToast({ type: "success", title: "Workflow updated", description: `${fixture.matchId} moved to ${nextStatus}.` });
     } catch (error) {
       showToast({
@@ -77,6 +80,9 @@ export default function WorkflowPage() {
   };
 
   const renderActions = (fixture: Fixture) => {
+    if (!isAdminUser) {
+      return <span className="text-xs font-bold text-slate-400">Viewer read-only</span>;
+    }
     if (fixture.status === "Draft") {
       return (
         <button type="button" onClick={() => runTransition(fixture, "Scheduled")} className="secondary-button flex items-center gap-2 px-3 py-2 text-xs font-black">
