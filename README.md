@@ -1,116 +1,190 @@
-# Fixture & Points Table Manager
+# Eagle Box Cricket — Tournament Operations Platform
 
-Professional cricket tournament operations web app for Eagle Box Cricket, a sports venue management company.
+A full-stack cricket tournament management platform for managing teams, fixtures, match results, standings, reports, public scoreboard, workflow tracking, and AI-powered tournament insights.
 
-This app helps an admin manage cricket tournament teams, fixtures, match results, reports, and a simplified Net Run Rate based points table. It is built as a local-first demo, so it works immediately without database keys, backend setup, or paid services.
+**Live demo:** [https://eagle-box-cricket-iota.vercel.app/](https://eagle-box-cricket-iota.vercel.app/)
 
-## Features
+## Demo Access
 
-- Demo admin login with localStorage session persistence
-- Protected dashboard, teams, fixtures, results, points table, and reports pages
-- Add, edit, delete, and search teams
-- Create, edit, and delete fixtures
-- Submit match results with runs, wickets, cricket overs, fours, sixes, and notes
-- Automatic full points table recalculation from teams plus completed fixtures
-- Simplified cricket Net Run Rate calculation with correct overs parsing
-- Celebration overlay for SIX, FOUR, WINNER, and MATCH TIED
-- Dashboard stats, previews, and animated cricket ball
-- JSON report download, copy summary, and print / save as PDF
-- Seed and reset demo data
-- Persistent localStorage data after refresh
+| Role | Email | Password | Access |
+| --- | --- | --- | --- |
+| Admin | `admin@eaglebox.com` | `admin123` | Create, edit, delete, and manage tournament data |
+| Viewer | `viewer@eaglebox.com` | `viewer123` | Read-only tournament access |
+
+## Feature Highlights
+
+- Role-based Admin and Viewer access
+- Team management with active, inactive, and archived states
+- Fixture scheduling with workflow status tracking
+- Toss and match result entry
+- Cricket overs validation
+- Points table and Net Run Rate calculation
+- Dedicated standings page with sortable table
+- Workflow tracking from draft to report generated
+- Reports and CSV/print-friendly exports
+- Public scoreboard page
+- Automated Insights and Gemini-powered assistant
+- Supabase PostgreSQL support
+- LocalStorage fallback for local demo mode
+- Dark/light mode with persistence
+- Responsive dashboard
+- Video hero animation
 
 ## Tech Stack
 
 - Next.js App Router
+- React
 - TypeScript
 - Tailwind CSS
+- Supabase PostgreSQL
+- Gemini API
+- Vercel
+- Recharts
 - Framer Motion
-- lucide-react icons
-- localStorage persistence
+- lucide-react
+- Browser CSV export and print/PDF workflow
 
-## Folder Structure
+## Screenshots
 
-```text
-app/
-  layout.tsx
-  globals.css
-  login/page.tsx
-  page.tsx
-  teams/page.tsx
-  fixtures/page.tsx
-  results/page.tsx
-  points-table/page.tsx
-  reports/page.tsx
-components/
-  AppShell.tsx
-  AuthGuard.tsx
-  Sidebar.tsx
-  GlassCard.tsx
-  StatCard.tsx
-  TeamCard.tsx
-  FixtureCard.tsx
-  PointsTableView.tsx
-  ResultForm.tsx
-  CelebrationOverlay.tsx
-  CricketBallAnimation.tsx
-  EmptyState.tsx
-  ConfirmDialog.tsx
-  ToastProvider.tsx
-  PageHeader.tsx
-  LoadingSkeleton.tsx
-lib/
-  types.ts
-  storage.ts
-  points.ts
-  seed.ts
-  utils.ts
+Available screenshots:
+
+![Dashboard](./screenshots/dashboard.png)
+![Teams](./screenshots/teams.png)
+![Fixtures](./screenshots/fixtures.png)
+![Standings](./screenshots/standings.png)
+![Automated Insights](./screenshots/automated-insights.png)
+
+TODO: Add the remaining screenshots manually when available:
+
+- `./screenshots/results.png`
+- `./screenshots/reports.png`
+- `./screenshots/scoreboard.png`
+
+## System Architecture
+
+```mermaid
+flowchart TD
+  A["Next.js Frontend"] --> B["Auth / Role Guard"]
+  B --> C["Storage Service"]
+  C --> D["Supabase PostgreSQL"]
+  C --> E["LocalStorage Fallback"]
+  C --> F["Points Engine"]
+  F --> G["Standings / NRR"]
+  C --> H["Reports"]
+  C --> I["Automated Insights / Gemini API"]
+  C --> J["Public Scoreboard"]
 ```
 
-## Run Locally
+For deeper implementation notes, see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+
+## Data Model
+
+The main entities are:
+
+- **Teams**: tournament teams, captains, coaches, venues, contact details, status, and branding color.
+- **Fixtures**: scheduled matches, teams, venue, match type, workflow status, toss data, and result metadata.
+- **Match Results**: runs, wickets, overs, result type, winner, player of the match, and notes.
+- **Player Batting Stats**: per-fixture batting entries for player performance reporting.
+- **Player Bowling Stats**: per-fixture bowling entries for wickets, overs, and runs conceded.
+- **Tournament Settings**: format and configurable points rules.
+- **Reports**: generated report logs and summaries.
+- **Activity Logs**: operational timeline events.
+
+Supabase schema is located at:
+
+```text
+supabase/schema.sql
+```
+
+## Cricket Logic
+
+Tournament points are configurable from Settings:
+
+- Win = configurable points
+- Tie = configurable points
+- Loss = configurable points
+
+Net Run Rate is calculated as:
+
+```text
+(Runs Scored / Overs Faced) - (Runs Conceded / Overs Bowled)
+```
+
+Overs are stored and calculated internally as balls for accuracy. For example, `18.4` means 18 overs and 4 balls, not 18.4 decimal overs.
+
+## Environment Variables
+
+Create `.env.local` locally using this shape:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+GEMINI_API_KEY=
+```
+
+Security notes:
+
+- Do not commit `.env.local`.
+- `GEMINI_API_KEY` is server-side only and must never be exposed in client code.
+- Supabase public/publishable keys are safe for browser use when Row Level Security is configured correctly.
+- A Supabase service role key, if added in the future, must never be exposed to the browser.
+
+## Local Setup
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Demo Login
+Production build check:
 
-- Email: `admin@eaglebox.com`
-- Password: `admin123`
+```bash
+npm run build
+```
 
-## Demo Flow
+Start a production build locally:
 
-1. Login with the demo admin account.
-2. Click `Seed Demo Data` on the dashboard.
-3. Review teams, add a team, edit it, and delete with confirmation.
-4. Create and edit an upcoming fixture.
-5. Submit a result with runs, wickets, overs, fours, and sixes.
-6. Watch the celebration overlay.
-7. Open Points Table and confirm standings plus NRR are updated.
-8. Recalculate the table manually.
-9. Open Reports, copy the summary, download JSON, and print / save as PDF.
-10. Refresh the browser and confirm local data persists.
-11. Logout and confirm protected routes redirect to login.
+```bash
+npm run start
+```
 
-## localStorage Design
+## Supabase Setup
 
-The app stores all demo data in browser localStorage:
+1. Create a Supabase project.
+2. Copy the project URL and publishable key.
+3. Add the environment variables to `.env.local`.
+4. Open the Supabase SQL Editor.
+5. Run `supabase/schema.sql`.
+6. Redeploy on Vercel after adding environment variables.
 
-- `isLoggedIn`
-- `ebc_teams`
-- `ebc_fixtures`
-- `ebc_points_table`
+If Supabase is not configured or becomes unavailable during local use, the app falls back to browser LocalStorage demo mode.
 
-The storage functions live in `lib/storage.ts`, so localStorage can later be replaced by Firebase, Supabase, or another backend without rewriting page components.
+## Gemini Assistant
 
-## Future Scope
+Automated Insights and the chat assistant call server-side API routes. The frontend sends current tournament data to the API route, and the server uses `GEMINI_API_KEY` when available. If Gemini is unavailable, quota-limited, or returns invalid output, the app returns local rule-based insights so the UI remains functional.
 
-- Firebase or Supabase database
-- Real user authentication
-- PDF report export
-- WhatsApp reminder integration using WhatsApp Business API
-- AI-generated match summaries using OpenAI or Gemini
-- Role-based admin access
-- Cloud deployment
+## Deployment
+
+This project is deployed on Vercel:
+
+[https://eagle-box-cricket-iota.vercel.app/](https://eagle-box-cricket-iota.vercel.app/)
+
+## Project Status
+
+Production-style portfolio project / active development.
+
+## Future Improvements
+
+- Real Supabase Auth
+- Admin invite system
+- Live scoring mode
+- Mobile app
+- Advanced analytics
+- Email/WhatsApp notifications
+
+## License / Portfolio Note
+
+This project is built for learning, portfolio, and cricket operations workflow demonstration.
