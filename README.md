@@ -26,6 +26,8 @@ A full-stack cricket tournament management platform for managing teams, fixtures
 - Automated Insights and Gemini-powered assistant
 - Supabase PostgreSQL support
 - LocalStorage fallback for local demo mode
+- Protected `/admin/*` control room with Supabase Auth support
+- Realtime live score updates from admin scoring to public viewer pages
 - Dark/light mode with persistence
 - Responsive dashboard
 - Video hero animation
@@ -118,8 +120,11 @@ Create `.env.local` locally using this shape:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+NEXT_PUBLIC_ADMIN_EMAILS=admin@eaglebox.com
+NEXT_PUBLIC_ADMIN_PASSWORD=admin123
+SUPABASE_SERVICE_ROLE_KEY=
 GEMINI_API_KEY=
 ```
 
@@ -128,6 +133,8 @@ Security notes:
 - Do not commit `.env.local`.
 - `GEMINI_API_KEY` is server-side only and must never be exposed in client code.
 - Supabase public/publishable keys are safe for browser use when Row Level Security is configured correctly.
+- Admin access is authorized by the Supabase `admins` table, using `admins.user_id = auth.users.id`.
+- `NEXT_PUBLIC_ADMIN_EMAILS` and `NEXT_PUBLIC_ADMIN_PASSWORD` are only for local demo fallback when Supabase is not configured.
 - A Supabase service role key, if added in the future, must never be exposed to the browser.
 
 ## Local Setup
@@ -158,9 +165,25 @@ npm run start
 3. Add the environment variables to `.env.local`.
 4. Open the Supabase SQL Editor.
 5. Run `supabase/schema.sql`.
-6. Redeploy on Vercel after adding environment variables.
+6. In Supabase Auth, create an email/password user for each admin email.
+7. Copy that user's Auth UID and add it to `admins`:
+
+```sql
+insert into admins (user_id, email)
+values ('AUTH_USER_ID_HERE', 'admin@eaglebox.com');
+```
+
+8. Ensure Realtime is enabled for `league_snapshots`, `live_matches`, `ball_events`, `fixtures`, and `results` (the schema attempts to add them to the Supabase realtime publication).
+9. Redeploy on Vercel after adding environment variables.
 
 If Supabase is not configured or becomes unavailable during local use, the app falls back to browser LocalStorage demo mode.
+
+## Live Scoring Flow
+
+1. Open `/admin/login` on Device 1 and sign in with a Supabase Auth admin user that exists in `admins`.
+2. Go to `/admin/live-score`, select a match, batting team, striker, non-striker, and bowler.
+3. Click **Start Match**, then use the ball outcome buttons.
+4. Open `/live` or `/matches/[id]` on Device 2. The viewer page subscribes to Supabase Realtime (`live_matches`, `ball_events`, and `league_snapshots`) and updates without a full reload. A 5-second polling refresh remains as backup.
 
 ## Gemini Assistant
 

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { EbLogoVideo } from "@/components/EbLogoVideo";
 import { useAuth } from "@/hooks/useAuth";
 import { getDataSourceStatus } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -69,9 +70,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         aria-label="Go to dashboard"
         className="mx-3 mt-3 flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-2 py-3 transition duration-200 hover:scale-[1.01] hover:border-emerald-300/25 hover:bg-emerald-300/[0.07] hover:shadow-emerald"
       >
-        <div className="grid h-12 w-12 place-items-center rounded-lg border border-emerald-300/30 bg-emerald-400/14 text-lg font-black text-emerald-100 shadow-emerald">
-          EB
-        </div>
+        <EbLogoVideo size="lg" />
         <div>
           <p className="text-sm font-black text-white">Eagle Box</p>
           <p className="text-xs font-semibold text-amber-200/80">Cricket Ops</p>

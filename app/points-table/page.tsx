@@ -1,122 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Download, RefreshCw } from "lucide-react";
-import { AppShell } from "@/components/AppShell";
-import { EmptyState } from "@/components/EmptyState";
-import { GlassCard } from "@/components/GlassCard";
-import { LoadingSkeleton } from "@/components/LoadingSkeleton";
-import { PageHeader } from "@/components/PageHeader";
-import { PointsTableView } from "@/components/PointsTableView";
-import { useToast } from "@/components/ToastProvider";
-import {
-  getFixtures,
-  getPointsTable,
-  getTeams,
-  recalculateAndSavePointsTable
-} from "@/lib/storage";
-import type { Fixture, PointsRow, Team } from "@/lib/types";
-import { downloadTextFile, escapeCsv, formatNrr, getActiveFixtures, getActiveTeams, getTeamName } from "@/lib/utils";
+import { LeagueShell } from "@/components/league/LeagueShell";
+import { PlayoffBracket, PointsTable } from "@/components/league/LeagueCards";
+import { useLeagueData } from "@/components/league/useLeagueData";
+import { calculatePlayoffBracket } from "@/lib/leagueStorage";
 
 export default function PointsTablePage() {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [fixtures, setFixtures] = useState<Fixture[]>([]);
-  const [pointsTable, setPointsTable] = useState<PointsRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { showToast } = useToast();
-
-  const loadData = async () => {
-    const [nextTeams, nextFixtures, nextPoints] = await Promise.all([getTeams(), getFixtures(), getPointsTable()]);
-    setTeams(getActiveTeams(nextTeams));
-    setFixtures(getActiveFixtures(nextFixtures, nextTeams));
-    setPointsTable(nextPoints);
-  };
-
-  useEffect(() => {
-    void loadData().finally(() => setLoading(false));
-  }, []);
-
-  const handleRecalculate = async () => {
-    const nextTable = await recalculateAndSavePointsTable(teams, fixtures);
-    setPointsTable(nextTable);
-    showToast({
-      type: "success",
-      title: "Table recalculated",
-      description: "Standings rebuilt from teams and completed fixtures."
-    });
-  };
-
-  const handleExport = () => {
-    const rows = [
-      ["Rank", "Team", "Played", "Won", "Lost", "Tied", "No Result", "NRR", "Points"],
-      ...pointsTable.map((row, index) => [
-        index + 1,
-        getTeamName(teams, row.teamId),
-        row.played,
-        row.won,
-        row.lost,
-        row.tied,
-        row.noResult,
-        formatNrr(row.netRunRate),
-        row.points
-      ])
-    ];
-    downloadTextFile("eagle-box-standings.csv", rows.map((row) => row.map(escapeCsv).join(",")).join("\n"));
-    showToast({ type: "success", title: "CSV exported", description: "Standings CSV is ready." });
-  };
+  const { teams, pointsTable } = useLeagueData();
+  const bracket = calculatePlayoffBracket(pointsTable, teams);
 
   return (
-    <AppShell>
-      {loading ? (
-        <LoadingSkeleton label="Loading points table" />
-      ) : (
-        <>
-          <PageHeader
-            title="Points Table"
-            breadcrumb="Dashboard / Points Table"
-            description="Standings sorted by points, NRR, wins, and team name, recalculated from completed fixtures."
-            actions={
-              <>
-                <button
-                  type="button"
-                  onClick={handleRecalculate}
-                  className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Recalculate Points
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExport}
-                  className="secondary-button flex items-center gap-2 px-4 py-2 text-sm font-black"
-                >
-                  <Download className="h-4 w-4" />
-                  Download CSV
-                </button>
-              </>
-            }
-          />
-
-          <GlassCard className="p-5" hover={false}>
-            {pointsTable.length > 0 ? (
-              <PointsTableView pointsTable={pointsTable} teams={teams} />
-            ) : (
-              <EmptyState
-                title="No completed matches yet"
-                description="Enter results to generate standings."
-              />
-            )}
-          </GlassCard>
-
-          <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-sm text-slate-300">
-              <span className="font-black text-white">How points are calculated:</span>{" "}
-              Points come from Tournament Settings. NRR = (runs scored / overs faced) - (runs conceded / overs bowled).
-              Overs are tracked as balls internally for precision. Table sorts by: Points desc, NRR desc, Wins desc, Team name asc.
-            </p>
+    <LeagueShell>
+      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">Standings</p>
+        <h1 className="mt-2 text-4xl font-black text-white md:text-6xl">IPL Points Table</h1>
+        <p className="mt-3 max-w-2xl text-slate-300">Sorted by points, then net run rate, then wins. Top four are highlighted automatically.</p>
+        <div className="mt-8">
+          <PointsTable rows={pointsTable} teams={teams} />
+        </div>
+        <div className="mt-10">
+          <div className="mb-4">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-700">Playoffs</p>
+            <h2 className="mt-2 text-3xl font-black text-white">Dynamic playoff bracket</h2>
           </div>
-        </>
-      )}
-    </AppShell>
+          <PlayoffBracket fixtures={bracket} />
+        </div>
+      </section>
+    </LeagueShell>
   );
 }
