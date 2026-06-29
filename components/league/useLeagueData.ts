@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { applyLiveScoreToLeagueSnapshot, useLiveScore } from "@/hooks/useLiveScore";
 import type { LeagueSnapshot } from "@/lib/leagueTypes";
 import {
   calculatePointsTable,
@@ -28,6 +29,7 @@ export function readLeagueSnapshot(): LeagueSnapshot {
 }
 
 export function useLeagueData(pollMs = 5000) {
+  const supabaseLiveScore = useLiveScore(pollMs);
   const [snapshot, setSnapshot] = useState<LeagueSnapshot>({
     teams: [],
     players: [],
@@ -53,5 +55,10 @@ export function useLeagueData(pollMs = 5000) {
     };
   }, [pollMs, refresh]);
 
-  return { ...snapshot, refresh };
+  const liveSnapshot = useMemo(
+    () => applyLiveScoreToLeagueSnapshot(snapshot, supabaseLiveScore.liveMatch, supabaseLiveScore.ballEvents),
+    [snapshot, supabaseLiveScore.liveMatch, supabaseLiveScore.ballEvents]
+  );
+
+  return { ...liveSnapshot, liveScoreError: supabaseLiveScore.error, refresh };
 }

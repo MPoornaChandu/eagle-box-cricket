@@ -1570,7 +1570,7 @@ function eventCommentary(label: string, type: BallEventType, striker?: Player, b
   return `${batter} takes ${label} run${label === "1" ? "" : "s"}.`;
 }
 
-export function recordBallEvent(matchId: string, type: BallEventType, value = 0) {
+export function recordBallEvent(matchId: string, type: BallEventType, value = 0, options?: { syncSnapshot?: boolean }) {
   const players = getPlayers();
   const matches = getMatches();
   const matchIndex = matches.findIndex((match) => match.id === matchId);
@@ -1661,8 +1661,14 @@ export function recordBallEvent(matchId: string, type: BallEventType, value = 0)
     : [...match.innings, innings];
   const nextMatch: Match = { ...match, status: "live", live, innings: nextInnings };
   const nextMatches = matches.map((item, index) => (index === matchIndex ? nextMatch : item));
-  saveMatches(nextMatches);
-  saveLiveMatch(nextMatch);
+  const previousSuppress = suppressSnapshotSync;
+  if (options?.syncSnapshot === false) suppressSnapshotSync = true;
+  try {
+    saveMatches(nextMatches);
+    saveLiveMatch(nextMatch);
+  } finally {
+    suppressSnapshotSync = previousSuppress;
+  }
   return nextMatch;
 }
 

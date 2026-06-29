@@ -20,6 +20,15 @@ import {
   startLiveMatch,
   undoLastBall
 } from "@/lib/leagueStorage";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import {
+  applySupabaseBallUpdate,
+  formatSupabaseError,
+  getLiveMatchByFixture,
+  startSupabaseLiveMatch,
+  type SupabaseLiveMatchRow,
+  updateSupabaseLiveMatch
+} from "@/lib/supabase/liveScore";
 
 const eventButtons: Array<{ label: string; type: BallEventType; value: number }> = [
   { label: "0", type: "run", value: 0 },
@@ -35,6 +44,9 @@ const eventButtons: Array<{ label: string; type: BallEventType; value: number }>
   { label: "Leg bye", type: "leg-bye", value: 1 }
 ];
 
+const SYNC_TIMEOUT_MS = 6000;
+const SLOW_SYNC_MESSAGE = "Score saved locally, Supabase is taking longer than expected. Check connection.";
+
 export default function AdminLiveScorePage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -45,6 +57,11 @@ export default function AdminLiveScorePage() {
   const [nonStrikerId, setNonStrikerId] = useState("");
   const [bowlerId, setBowlerId] = useState("");
   const [manual, setManual] = useState({ runs: 0, wickets: 0, balls: 0 });
+  const [syncError, setSyncError] = useState("");
+  const [syncMessage, setSyncMessage] = useState("");
+  const [supabaseSummary, setSupabaseSummary] = useState("");
+  const [supabaseLiveMatch, setSupabaseLiveMatch] = useState<SupabaseLiveMatchRow | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const load = () => {
     const nextTeams = getTeams();
@@ -76,35 +93,194 @@ export default function AdminLiveScorePage() {
     if (!bowlerId && bowlingPlayers[1]) setBowlerId(bowlingPlayers[1].id);
   }, [battingPlayers, bowlingPlayers, bowlerId, nonStrikerId, strikerId]);
 
-  const start = (event: FormEvent<HTMLFormElement>) => {
+  const errorMessage = (error: unknown) => formatSupabaseError(error);
+
+  const updateSupabaseSummary = (row?: SupabaseLiveMatchRow | null) => {
+    if (!row) return;
+    setSupabaseLiveMatch(row);
+    setSupabaseSummary(`${row.runs ?? 0}/${row.wickets ?? 0} in ${ballsToOvers(row.balls ?? 0)}`);
+  };
+
+  async function runSupabaseRequest<T>(operation: () => Promise<T>) {
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      setSyncing(false);
+      setSyncMessage(SLOW_SYNC_MESSAGE);
+    }, SYNC_TIMEOUT_MS);
+
+    try {
+      const data = await operation();
+      return { data, timedOut };
+    } finally {
+      window.clearTimeout(timeoutId);
+      setSyncing(false);
+    }
+  }
+
+  const applyLocalMatch = (match?: Match) => {
+    if (!match?.live) return;
+    setMatches((current) => current.map((item) => (item.id === match.id ? match : item)));
+    setManual({ runs: match.live.runs, wickets: match.live.wickets, balls: match.live.balls });
+  };
+
+  const syncLiveMatch = async (match?: Match) => {
+    if (!match?.live) throw new Error("No active live match to sync.");
+    const data = await startSupabaseLiveMatch({ match, teams, players });
+    updateSupabaseSummary(data);
+    return data;
+  };
+
+  const start = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    startLiveMatch(selectedMatchId, battingTeamId, strikerId, nonStrikerId, bowlerId);
-    load();
+    setSyncError("");
+    setSyncMessage("");
+    try {
+      const match = startLiveMatch(selectedMatchId, battingTeamId, strikerId, nonStrikerId, bowlerId);
+      load();
+      if (isSupabaseConfigured()) {
+        setSyncing(true);
+        const { timedOut } = await runSupabaseRequest(() => syncLiveMatch(match));
+        if (!timedOut) setSyncMessage("Started match and created/updated Supabase live_matches.");
+      } else {
+        setSyncMessage("Supabase is not configured, so live score is saved locally.");
+      }
+    } catch (error) {
+      console.error("Supabase live score error:", formatSupabaseError(error), error);
+      setSyncError(errorMessage(error));
+    } finally {
+      setSyncing(false);
+      load();
+    }
   };
 
-  const addEvent = (type: BallEventType, value: number) => {
-    recordBallEvent(selectedMatchId, type, value);
-    load();
+  const addEvent = async (type: BallEventType, value: number) => {
+    setSyncError("");
+    setSyncMessage("");
+    try {
+      const match = recordBallEvent(selectedMatchId, type, value, { syncSnapshot: false });
+      const event = match.live?.commentary[0];
+      applyLocalMatch(match);
+      if (isSupabaseConfigured()) {
+        setSyncing(true);
+        const { data: result, timedOut } = await runSupabaseRequest(() =>
+          applySupabaseBallUpdate({ match, event, currentLiveMatch: supabaseLiveMatch })
+        );
+        updateSupabaseSummary(result.liveMatch);
+        if (!timedOut) setSyncMessage("Inserted ball_events row and updated Supabase live_matches.");
+      } else {
+        setSyncMessage("Supabase is not configured, so ball event is saved locally.");
+      }
+    } catch (error) {
+      console.error("Supabase live score error:", formatSupabaseError(error), error);
+      setSyncError(errorMessage(error));
+    } finally {
+      setSyncing(false);
+    }
   };
 
-  const applyManual = () => {
-    manualLiveCorrection(selectedMatchId, manual);
-    load();
+  const applyManual = async () => {
+    setSyncError("");
+    setSyncMessage("");
+    try {
+      const match = manualLiveCorrection(selectedMatchId, manual);
+      load();
+      if (isSupabaseConfigured()) {
+        if (!match?.live) throw new Error("No active live match to sync.");
+        setSyncing(true);
+        const { data: result, timedOut } = await runSupabaseRequest(() =>
+          applySupabaseBallUpdate({ match, currentLiveMatch: supabaseLiveMatch })
+        );
+        updateSupabaseSummary(result.liveMatch);
+        if (!timedOut) setSyncMessage("Manual correction updated Supabase live_matches.");
+      } else {
+        setSyncMessage("Supabase is not configured, so live score is saved locally.");
+      }
+    } catch (error) {
+      console.error("Supabase live score error:", formatSupabaseError(error), error);
+      setSyncError(errorMessage(error));
+    } finally {
+      setSyncing(false);
+      load();
+    }
   };
 
-  const undo = () => {
-    undoLastBall();
-    load();
+  const undo = async () => {
+    setSyncError("");
+    setSyncMessage("");
+    try {
+      const match = undoLastBall();
+      load();
+      if (isSupabaseConfigured()) {
+        if (!match?.live) throw new Error("No active live match to sync.");
+        setSyncing(true);
+        const { data: result, timedOut } = await runSupabaseRequest(() =>
+          applySupabaseBallUpdate({ match, currentLiveMatch: supabaseLiveMatch })
+        );
+        updateSupabaseSummary(result.liveMatch);
+        if (!timedOut) setSyncMessage("Undo updated Supabase live_matches.");
+      } else {
+        setSyncMessage("Supabase is not configured, so live score is saved locally.");
+      }
+    } catch (error) {
+      console.error("Supabase live score error:", formatSupabaseError(error), error);
+      setSyncError(errorMessage(error));
+    } finally {
+      setSyncing(false);
+      load();
+    }
   };
 
-  const endInnings = () => {
-    endCurrentInnings(selectedMatchId);
-    load();
+  const endInnings = async () => {
+    setSyncError("");
+    setSyncMessage("");
+    try {
+      const match = endCurrentInnings(selectedMatchId);
+      load();
+      if (isSupabaseConfigured()) {
+        if (!match?.live) throw new Error("No active live match to sync.");
+        setSyncing(true);
+        const { data: result, timedOut } = await runSupabaseRequest(() =>
+          applySupabaseBallUpdate({ match, currentLiveMatch: supabaseLiveMatch })
+        );
+        updateSupabaseSummary(result.liveMatch);
+        if (!timedOut) setSyncMessage("New innings updated Supabase live_matches.");
+      } else {
+        setSyncMessage("Supabase is not configured, so live score is saved locally.");
+      }
+    } catch (error) {
+      console.error("Supabase live score error:", formatSupabaseError(error), error);
+      setSyncError(errorMessage(error));
+    } finally {
+      setSyncing(false);
+      load();
+    }
   };
 
-  const complete = () => {
-    completeLiveMatch(selectedMatchId);
-    load();
+  const complete = async () => {
+    setSyncError("");
+    setSyncMessage("");
+    try {
+      completeLiveMatch(selectedMatchId);
+      load();
+      if (isSupabaseConfigured()) {
+        setSyncing(true);
+        const { data: liveRow, timedOut } = await runSupabaseRequest(async () => {
+          const currentLiveRow = await getLiveMatchByFixture(selectedMatchId);
+          return currentLiveRow ? updateSupabaseLiveMatch(currentLiveRow.id, { status: "completed" }) : null;
+        });
+        updateSupabaseSummary(liveRow);
+        if (!timedOut) setSyncMessage("Match completed.");
+      } else {
+        setSyncMessage("Match completed.");
+      }
+    } catch (error) {
+      console.error("Supabase live score error:", formatSupabaseError(error), error);
+      setSyncError(errorMessage(error));
+    } finally {
+      setSyncing(false);
+      load();
+    }
   };
 
   const liveSummary = useMemo(() => {
@@ -132,8 +308,12 @@ export default function AdminLiveScorePage() {
           <section className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
             <h2 className="text-2xl font-black text-white">Add ball event</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">{liveSummary}</p>
+            {syncing ? <p className="mt-3 text-sm font-bold text-emerald-200">Syncing...</p> : null}
+            {syncMessage ? <p className="mt-3 text-sm font-bold text-emerald-200">{syncMessage}</p> : null}
+            {supabaseSummary ? <p className="mt-2 text-sm font-bold text-slate-300">Supabase saved score: {supabaseSummary}</p> : null}
+            {syncError ? <p className="mt-3 rounded-lg border border-red-300/30 bg-red-500/10 p-3 text-sm font-bold text-red-200">{syncError}</p> : null}
             <div className="mt-4 grid grid-cols-3 gap-2">
-              {eventButtons.map((event) => <button key={event.label} type="button" onClick={() => addEvent(event.type, event.value)} className={event.type === "wicket" ? "danger-button px-3 py-3 text-sm font-black" : "secondary-button px-3 py-3 text-sm font-black"}>{event.label}</button>)}
+              {eventButtons.map((event) => <button key={event.label} type="button" disabled={syncing} onClick={() => void addEvent(event.type, event.value)} className={event.type === "wicket" ? "danger-button px-3 py-3 text-sm font-black" : "secondary-button px-3 py-3 text-sm font-black"}>{event.label}</button>)}
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
               <button type="button" onClick={undo} className="secondary-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm font-black"><RotateCcw className="h-4 w-4" />Undo Last Ball</button>
