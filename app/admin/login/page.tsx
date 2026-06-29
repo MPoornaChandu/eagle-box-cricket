@@ -6,6 +6,7 @@ import { LockKeyhole, Mail } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { adminLogin, isAdminSessionActive } from "@/lib/leagueStorage";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
+import LampAnimation from "./LampAnimation";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -44,7 +45,9 @@ export default function AdminLoginPage() {
       <div className="absolute right-4 top-4">
         <ThemeToggle compact />
       </div>
-      <form onSubmit={submit} className="glass-panel w-full max-w-md rounded-lg p-6">
+      <div className="flex items-center justify-center gap-10 flex-wrap">
+        <LampAnimation />
+        <form onSubmit={submit} className="glass-panel w-full max-w-md rounded-lg p-6">
         <div className="grid h-14 w-14 place-items-center rounded-lg border border-emerald-300/30 bg-emerald-300/12 text-emerald-100">
           <LockKeyhole className="h-6 w-6" />
         </div>
@@ -71,6 +74,7 @@ export default function AdminLoginPage() {
             : "Local fallback: admin@eaglebox.com / admin123"}
         </p>
       </form>
+      </div>
     </main>
   );
 }
