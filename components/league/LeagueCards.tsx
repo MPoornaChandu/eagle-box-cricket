@@ -404,7 +404,11 @@ export function LiveScorePanel({ match, teams, players }: { match?: Match; teams
           </div>
         ) : null}
       </div>
-      <Link href={`/matches/${match.id}`} className="premium-button mt-5 inline-flex px-4 py-3 text-sm">
+      <div className="mt-4 flex items-center justify-between gap-2 text-xs text-slate-400">
+        <span>Last updated: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />Live</span>
+      </div>
+      <Link href={`/matches/${match.id}`} className="premium-button mt-4 inline-flex px-4 py-3 text-sm">
         View Match Center
       </Link>
     </motion.section>
