@@ -18,7 +18,6 @@ const publicNav = [
   { href: "/players", label: "Players", icon: UserRound },
   { href: "/teams", label: "Teams", icon: Users },
   { href: "/results", label: "Results", icon: Trophy },
-  { href: "/standings", label: "Standings", icon: BarChart3 }
 ];
 
 export function LeagueShell({ children }: { children: ReactNode }) {
@@ -100,7 +99,8 @@ export function LeagueShell({ children }: { children: ReactNode }) {
       <main>{children}</main>
       <FloatingViewerVideo />
       <footer className="border-t border-emerald-100 bg-white/70 px-4 py-8 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-        Eagle Box Cricket League
+        <p>Eagle Box Cricket League &mdash; Season 2026</p>
+        <p className="mt-1 text-slate-400 normal-case tracking-normal text-[0.7rem]">Live scores powered by Supabase Realtime</p>
       </footer>
     </div>
   );
