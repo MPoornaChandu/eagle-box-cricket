@@ -13,7 +13,7 @@ export default function PointsTablePage() {
     <LeagueShell>
       <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
         <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">Standings</p>
-        <h1 className="mt-2 text-4xl font-black text-white md:text-6xl">IPL Points Table</h1>
+        <h1 className="mt-2 text-4xl font-black text-white md:text-6xl">EBC Points Table</h1>
         <p className="mt-3 max-w-2xl text-slate-300">Sorted by points, then net run rate, then wins. Top four are highlighted automatically.</p>
         <div className="mt-8">
           <PointsTable rows={pointsTable} teams={teams} />
