@@ -66,7 +66,7 @@ export default function HomePage() {
                 Live scores, match updates, teams, players and tournament standings.
               </p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <Link href="/live" className="premium-button inline-flex items-center justify-center gap-2 px-5 py-3 text-sm">
+                <Link href="/live-score" className="premium-button inline-flex items-center justify-center gap-2 px-5 py-3 text-sm">
                   <Radio className="h-4 w-4" />
                   View Live Score
                 </Link>

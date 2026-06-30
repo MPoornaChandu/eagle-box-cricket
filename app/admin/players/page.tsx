@@ -5,6 +5,8 @@ import { Plus, Save, Trash2 } from "lucide-react";
 import { AdminShell } from "@/components/league/AdminShell";
 import type { Player, PlayerRole, Team } from "@/lib/leagueTypes";
 import { addPlayer, deletePlayer, getPlayers, getTeam, getTeams, initials, updatePlayer } from "@/lib/leagueStorage";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { formatSupabaseError } from "@/lib/supabase/liveScore";
 
 const roles: PlayerRole[] = ["Batter", "Bowler", "All-rounder", "Wicketkeeper"];
 const emptyForm = {
@@ -25,6 +27,7 @@ export default function AdminPlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState("");
+  const [error, setError] = useState("");
 
   const load = () => {
     const nextTeams = getTeams();
@@ -34,15 +37,49 @@ export default function AdminPlayersPage() {
   };
   useEffect(load, []);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const syncPlayerToSupabase = async (player: Player) => {
+    if (!isSupabaseConfigured()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { error: supabaseError } = await supabase.from("players").upsert(
+      {
+        app_id: player.id,
+        team_id: null,
+        name: player.name,
+        role: player.role,
+        batting_style: player.battingStyle,
+        bowling_style: player.bowlingStyle,
+        jersey_number: player.jerseyNumber,
+        photo_url: player.image,
+        bio: player.bio ?? null,
+        payload: player,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "app_id" }
+    );
+    if (supabaseError) {
+      console.error("Supabase player sync error:", formatSupabaseError(supabaseError), supabaseError);
+      throw new Error(formatSupabaseError(supabaseError));
+    }
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError("");
     if (!form.name || !form.teamId) return;
-    const payload = { ...form, jerseyNumber: Number(form.jerseyNumber), image: form.image || initials(form.name) };
-    if (editingId) updatePlayer(editingId, payload);
-    else addPlayer(payload);
-    setForm({ ...emptyForm, teamId: teams[0]?.id ?? "" });
-    setEditingId("");
-    load();
+    try {
+      const payload = { ...form, jerseyNumber: Number(form.jerseyNumber), image: form.image || initials(form.name) };
+      const player = editingId
+        ? updatePlayer(editingId, payload).find((item) => item.id === editingId)
+        : addPlayer(payload);
+      if (player) await syncPlayerToSupabase(player);
+      setForm({ ...emptyForm, teamId: teams[0]?.id ?? "" });
+      setEditingId("");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Player could not be saved.");
+      load();
+    }
   };
 
   const edit = (player: Player) => {
@@ -80,6 +117,7 @@ export default function AdminPlayersPage() {
             <Field label="Nationality" value={form.nationality} onChange={(value) => setForm({ ...form, nationality: value })} />
             <label className="field-label">Bio<textarea rows={3} value={form.bio} onChange={(event) => setForm({ ...form, bio: event.target.value })} /></label>
           </div>
+          {error ? <p className="mt-3 text-sm font-bold text-red-200">{error}</p> : null}
           <button type="submit" className="premium-button mt-5 inline-flex items-center gap-2 px-4 py-3 text-sm">{editingId ? <Save className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{editingId ? "Save Player" : "Add Player"}</button>
         </form>
         <div className="overflow-hidden rounded-lg border border-white/10">

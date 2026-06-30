@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { CalendarDays, MapPin } from "lucide-react";
 import type { Match, Player, PlayoffFixture, PointsTableRow, Team } from "@/lib/leagueTypes";
-import { ballsToOvers, calculateEconomy, calculateStrikeRate, getPlayer, getTeam, scoreText } from "@/lib/leagueStorage";
+import { ballsToOvers, calculateEconomy, calculateRequiredRunRate, calculateStrikeRate, getPlayer, getTeam, scoreText } from "@/lib/leagueStorage";
 import { cn } from "@/lib/utils";
 
 function isImage(value?: string) {
@@ -63,13 +63,23 @@ export function StatusBadge({ status }: { status: Match["status"] }) {
   );
 }
 
+function resultMargin(match: Match) {
+  if (!match.result?.winnerTeamId || match.result.resultType === "tie" || match.result.resultType === "no-result") return "";
+  if (match.result.winnerTeamId === match.teamBId) {
+    return `Won by ${Math.max(10 - match.result.teamBWickets, 0)} wickets`;
+  }
+  return `Won by ${Math.max(match.result.teamARuns - match.result.teamBRuns, 0)} runs`;
+}
+
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <section className={cn("sport-card rounded-lg border border-white/70 bg-white/85 p-5", className)}>{children}</section>;
+  return <section className={cn("sport-card rounded-lg border border-[rgba(34,197,94,0.22)] bg-[rgba(8,18,16,0.48)] p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)] backdrop-blur-[18px]", className)}>{children}</section>;
 }
 
 export function MatchCard({ match, teams, hrefPrefix = "/matches", actions }: { match: Match; teams: Team[]; hrefPrefix?: string; actions?: ReactNode }) {
   const teamA = getTeam(match.teamAId, teams);
   const teamB = getTeam(match.teamBId, teams);
+  const winnerTeamId = match.status === "completed" ? match.result?.winnerTeamId : undefined;
+  const margin = resultMargin(match);
   const resultText =
     match.result?.resultType === "no-result"
       ? "No result"
@@ -98,17 +108,23 @@ export function MatchCard({ match, teams, hrefPrefix = "/matches", actions }: { 
       <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
         <div className="min-w-0">
           <TeamBadge team={teamA} />
-          <p className="mt-2 truncate font-black text-white">{teamA?.name}</p>
+          <p className={cn("mt-2 truncate font-black text-white", winnerTeamId === teamA?.id && "font-black text-emerald-200")}>{teamA?.name}</p>
           <p className="text-xs font-bold text-slate-400">{teamA?.shortCode}</p>
         </div>
         <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800">VS</span>
         <div className="min-w-0 text-right">
           <div className="flex justify-end"><TeamBadge team={teamB} /></div>
-          <p className="mt-2 truncate font-black text-white">{teamB?.name}</p>
+          <p className={cn("mt-2 truncate font-black text-white", winnerTeamId === teamB?.id && "font-black text-emerald-200")}>{teamB?.name}</p>
           <p className="text-xs font-bold text-slate-400">{teamB?.shortCode}</p>
         </div>
       </div>
       {resultText ? <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800">{resultText}</p> : null}
+      {winnerTeamId ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-white">WON</span>
+          {margin ? <span className="text-sm font-bold text-slate-300">{margin}</span> : null}
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-2 text-sm text-slate-300">
         <span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-emerald-600" />{new Date(match.dateTime).toLocaleString()}</span>
         <span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-emerald-600" />{match.venue}</span>
@@ -122,6 +138,8 @@ export function MatchCard({ match, teams, hrefPrefix = "/matches", actions }: { 
 
 export function PlayerCard({ player, team, hrefPrefix = "/players" }: { player: Player; team?: Team; hrefPrefix?: string }) {
   const style = { "--team-color": team?.primaryColor ?? "#0f9f6e" } as CSSProperties;
+  const dismissals = Math.max(player.careerStats?.battingInnings ?? player.matches ?? 0, 1);
+  const average = player.runs > 0 ? (player.runs / dismissals).toFixed(1) : "0.0";
 
   return (
     <motion.article whileHover={{ y: -3 }} style={style} className={cn("player-card sport-card rounded-lg border bg-white/85 p-4", roleClass(player.role))}>
@@ -137,6 +155,8 @@ export function PlayerCard({ player, team, hrefPrefix = "/players" }: { player: 
         </div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+        <StatPill label="Matches" value={player.matches} />
+        <StatPill label="Avg" value={average} />
         <StatPill label="Runs" value={player.runs} />
         <StatPill label="Wkts" value={player.wickets} />
         <StatPill label="SR" value={player.strikeRate.toFixed(1)} />
@@ -151,8 +171,8 @@ export function PlayerCard({ player, team, hrefPrefix = "/players" }: { player: 
 
 export function StatPill({ label, value }: { label: string; value: string | number }) {
   return (
-    <span className="rounded-lg border border-emerald-100 bg-white/80 px-3 py-2">
-      <span className="block text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-500">{label}</span>
+    <span className="rounded-lg border border-emerald-300/14 bg-[rgba(255,255,255,0.055)] px-3 py-2">
+      <span className="block text-[0.68rem] font-black uppercase tracking-[0.16em] text-slate-400">{label}</span>
       <span className="block text-base font-black text-white">{value}</span>
     </span>
   );
@@ -166,10 +186,10 @@ function qualifierLabel(index: number, row: PointsTableRow) {
 
 export function PointsTable({ rows, teams, compact = false }: { rows: PointsTableRow[]; teams: Team[]; compact?: boolean }) {
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-emerald-100 bg-white">
+    <div className="min-w-0 w-full max-w-full overflow-hidden rounded-lg border border-[rgba(34,197,94,0.22)] bg-[rgba(8,18,16,0.48)] shadow-[0_24px_70px_rgba(0,0,0,0.28)] backdrop-blur-[18px]">
       <div className="max-w-full overflow-x-auto">
-        <table className="min-w-[42rem] text-left text-sm">
-          <thead className="bg-emerald-50 text-xs uppercase tracking-[0.15em] text-slate-500">
+        <table className="w-full min-w-[56rem] text-left text-sm">
+          <thead className="bg-[rgba(34,197,94,0.12)] text-xs uppercase tracking-[0.15em] text-emerald-100">
             <tr>
               <th className="px-4 py-3">Position</th>
               <th className="px-4 py-3">Team</th>
@@ -189,8 +209,12 @@ export function PointsTable({ rows, teams, compact = false }: { rows: PointsTabl
               const team = getTeam(row.teamId, teams);
               const qualified = index < 4;
               return (
-                <tr key={row.teamId} className={cn("border-t border-emerald-100", qualified && "bg-emerald-50/45")}>
-                  <td className="px-4 py-3 font-black text-emerald-800">#{index + 1}</td>
+                <tr
+                  key={row.teamId}
+                  className={cn("glass-row-reveal border-t border-emerald-300/10 bg-[rgba(3,10,8,0.34)] transition hover:bg-[rgba(34,197,94,0.1)]", qualified && "bg-[rgba(34,197,94,0.11)]")}
+                  style={{ animationDelay: `${index * 40}ms` }}
+                >
+                  <td className="px-4 py-3 font-black text-emerald-200">#{index + 1}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <TeamBadge team={team} size="sm" />
@@ -201,10 +225,10 @@ export function PointsTable({ rows, teams, compact = false }: { rows: PointsTabl
                   <td className="px-4 py-3 font-bold text-slate-200">{row.won}</td>
                   <td className="px-4 py-3 font-bold text-slate-200">{row.lost}</td>
                   <td className="px-4 py-3 font-bold text-slate-200">{row.noResult}</td>
-                  <td className="px-4 py-3 font-black text-emerald-800">{row.points}</td>
-                  <td className="px-4 py-3 font-black text-slate-700">{row.nrr.toFixed(3)}</td>
+                  <td className="px-4 py-3 font-black text-emerald-200">{row.points}</td>
+                  <td className="px-4 py-3 font-black text-slate-100">{row.nrr.toFixed(3)}</td>
                   <td className="px-4 py-3">
-                    <span className={cn("rounded-full px-3 py-1 text-xs font-black", qualified ? "bg-emerald-600 text-white" : row.qualification === "Eliminated" ? "bg-slate-100 text-slate-500" : "bg-amber-100 text-amber-800")}>
+                    <span className={cn("rounded-full border px-3 py-1 text-xs font-black", qualified ? "border-emerald-300/30 bg-emerald-400/18 text-emerald-100" : row.qualification === "Eliminated" ? "border-slate-400/20 bg-slate-400/10 text-slate-300" : "border-amber-300/25 bg-amber-300/12 text-amber-100")}>
                       {qualifierLabel(index, row)}
                     </span>
                   </td>
@@ -223,15 +247,19 @@ export function PointsTable({ rows, teams, compact = false }: { rows: PointsTabl
 export function PlayoffBracket({ fixtures }: { fixtures: PlayoffFixture[] }) {
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      {fixtures.map((fixture) => (
-        <article key={fixture.id} className="rounded-lg border border-emerald-100 bg-white p-4 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">{fixture.title}</p>
+      {fixtures.map((fixture, index) => (
+        <article
+          key={fixture.id}
+          className="glass-row-reveal rounded-lg border border-[rgba(34,197,94,0.22)] bg-[rgba(8,18,16,0.48)] p-4 shadow-[0_18px_48px_rgba(0,0,0,0.22)] backdrop-blur-[16px]"
+          style={{ animationDelay: `${index * 65}ms` }}
+        >
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">{fixture.title}</p>
           <div className="mt-4 grid gap-2">
             <BracketTeam team={fixture.teamA} fallback={fixture.title === "Qualifier 2" ? "Loser Q1" : fixture.title === "Final" ? "Winner Q1" : "TBA"} />
-            <span className="text-center text-xs font-black text-slate-400">vs</span>
+            <span className="text-center text-xs font-black uppercase tracking-[0.14em] text-slate-400">vs</span>
             <BracketTeam team={fixture.teamB} fallback={fixture.title === "Qualifier 2" ? "Winner Eliminator" : fixture.title === "Final" ? "Winner Q2" : "TBA"} />
           </div>
-          <p className="mt-3 text-xs font-semibold text-slate-400">{fixture.detail}</p>
+          <p className="mt-3 text-xs font-semibold text-slate-300">{fixture.detail}</p>
         </article>
       ))}
     </div>
@@ -240,7 +268,7 @@ export function PlayoffBracket({ fixtures }: { fixtures: PlayoffFixture[] }) {
 
 function BracketTeam({ team, fallback }: { team?: Team; fallback: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+    <div className="flex items-center gap-2 rounded-lg border border-emerald-300/12 bg-[rgba(255,255,255,0.055)] px-3 py-2">
       {team ? <TeamBadge team={team} size="sm" /> : null}
       <span className="font-black text-white">{team?.name ?? fallback}</span>
     </div>
@@ -269,26 +297,27 @@ export function LiveScorePanel({ match, teams, players }: { match?: Match; teams
   const nonStrikerLine = currentInnings?.batting.find((line) => line.playerId === live.nonStrikerId);
   const bowlerLine = currentInnings?.bowling.find((line) => line.playerId === live.bowlerId);
   const crr = calculateEconomy(live.runs, live.balls).toFixed(2);
-  const remainingRuns = live.target ? Math.max(live.target - live.runs, 0) : undefined;
-  const remainingBalls = live.target ? Math.max(120 - live.balls, 1) : undefined;
-  const rrr = remainingRuns !== undefined && remainingBalls ? ((remainingRuns / remainingBalls) * 6).toFixed(2) : undefined;
+  const remainingRuns = live.target && live.inningsNumber >= 2 ? Math.max(live.target - live.runs, 0) : undefined;
+  const remainingBalls = live.target && live.inningsNumber >= 2 ? Math.max(120 - live.balls, 0) : undefined;
+  const rrrValue = calculateRequiredRunRate(live);
+  const rrr = rrrValue === undefined ? undefined : rrrValue === Infinity ? "Inf" : rrrValue.toFixed(2);
 
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="scoreboard-card mx-auto w-full max-w-3xl min-w-0 overflow-hidden rounded-3xl border border-emerald-100 bg-white/85 p-4 shadow-xl backdrop-blur-xl dark:bg-slate-900/85 sm:p-5 lg:p-6 xl:max-w-4xl"
+      className="scoreboard-card mx-auto w-full max-w-3xl min-w-0 overflow-hidden rounded-3xl border border-[rgba(34,197,94,0.22)] bg-[rgba(8,18,16,0.48)] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] backdrop-blur-[20px] sm:p-5 lg:p-6 xl:max-w-4xl"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <StatusBadge status="live" />
         <span className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{match.matchNumber}</span>
       </div>
       <div className="mt-5 space-y-4">
-        <div className="score-center flex flex-col items-center justify-center rounded-2xl border border-slate-100 bg-white/70 px-4 py-4 text-center dark:border-slate-800 dark:bg-slate-950/40">
-          <p className="score-flash whitespace-nowrap text-5xl font-black tracking-tight text-slate-950 dark:text-white sm:text-6xl">
+        <div className="score-center flex flex-col items-center justify-center rounded-2xl border border-emerald-300/18 bg-[rgba(255,255,255,0.06)] px-4 py-4 text-center shadow-[0_0_36px_rgba(34,197,94,0.14)]">
+          <p className="score-flash score-pop whitespace-nowrap text-5xl font-black tracking-tight text-slate-950 dark:text-white sm:text-6xl">
             {live.runs}/{live.wickets}
           </p>
-          <p className="whitespace-nowrap text-sm font-bold text-slate-500 dark:text-slate-300">
+          <p className="whitespace-nowrap text-sm font-bold text-slate-300">
             Overs {ballsToOvers(live.balls)}
           </p>
           {live.target ? (
@@ -299,7 +328,7 @@ export function LiveScorePanel({ match, teams, players }: { match?: Match; teams
         </div>
 
         <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="score-section-batting score-team-card min-w-0 rounded-2xl border border-emerald-100/70 bg-emerald-50/70 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/30">
+          <div className="score-section-batting score-team-card min-w-0 rounded-2xl border border-emerald-300/18 bg-[rgba(34,197,94,0.11)] p-4">
             <div className="flex min-w-0 items-center gap-4">
               <div className="flex-shrink-0">
                 <TeamBadge team={battingTeam} size="lg" />
@@ -318,7 +347,7 @@ export function LiveScorePanel({ match, teams, players }: { match?: Match; teams
             </div>
           </div>
 
-          <div className="score-section-bowling score-team-card min-w-0 rounded-2xl border border-blue-200 bg-blue-100/80 p-4 dark:border-blue-800/60 dark:bg-blue-950/40">
+          <div className="score-section-bowling score-team-card min-w-0 rounded-2xl border border-sky-300/16 bg-[rgba(56,189,248,0.09)] p-4">
             <div className="flex min-w-0 items-center gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-800 dark:text-blue-300">
@@ -347,14 +376,14 @@ export function LiveScorePanel({ match, teams, players }: { match?: Match; teams
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="min-w-0 overflow-x-auto rounded-lg border border-emerald-100 bg-white/80">
+        <div className="min-w-0 overflow-x-auto rounded-lg border border-emerald-300/16 bg-[rgba(255,255,255,0.055)]">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-emerald-50 text-xs uppercase tracking-[0.14em] text-slate-500">
+            <thead className="bg-[rgba(34,197,94,0.12)] text-xs uppercase tracking-[0.14em] text-emerald-100">
               <tr><th className="px-3 py-2">Batsman</th><th>R</th><th>B</th><th>4s</th><th>6s</th><th>SR</th></tr>
             </thead>
             <tbody>
               {[{ player: striker, line: strikerLine, key: "striker" }, { player: nonStriker, line: nonStrikerLine, key: "non-striker" }].map(({ player, line, key }) => (
-                <tr key={player?.id ?? key} className="border-t border-emerald-100">
+                <tr key={player?.id ?? key} className="border-t border-emerald-300/10 text-slate-200">
                   <td className="px-3 py-2 font-black text-white">{player?.name ?? "TBA"}</td>
                   <td>{line?.runs ?? 0}</td>
                   <td>{line?.balls ?? 0}</td>
@@ -366,13 +395,13 @@ export function LiveScorePanel({ match, teams, players }: { match?: Match; teams
             </tbody>
           </table>
         </div>
-        <div className="min-w-0 overflow-x-auto rounded-lg border border-emerald-100 bg-white/80">
+        <div className="min-w-0 overflow-x-auto rounded-lg border border-emerald-300/16 bg-[rgba(255,255,255,0.055)]">
           <table className="min-w-full text-left text-sm">
-            <thead className="bg-emerald-50 text-xs uppercase tracking-[0.14em] text-slate-500">
+            <thead className="bg-[rgba(34,197,94,0.12)] text-xs uppercase tracking-[0.14em] text-emerald-100">
               <tr><th className="px-3 py-2">Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th></tr>
             </thead>
             <tbody>
-              <tr className="border-t border-emerald-100">
+              <tr className="border-t border-emerald-300/10 text-slate-200">
                 <td className="px-3 py-2 font-black text-white">{bowler?.name ?? "TBA"}</td>
                 <td>{ballsToOvers(bowlerLine?.balls ?? 0)}</td>
                 <td>{bowlerLine?.maidens ?? 0}</td>
@@ -385,21 +414,25 @@ export function LiveScorePanel({ match, teams, players }: { match?: Match; teams
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg border border-emerald-100 bg-white/70 p-3">
+      <div className="mt-4 rounded-lg border border-emerald-300/16 bg-[rgba(255,255,255,0.055)] p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Last 6</span>
+          <span className="mr-1 text-xs font-black uppercase tracking-[0.16em] text-slate-300">Last 6</span>
           {live.lastSix.length ? live.lastSix.map((ball, index) => (
-            <span key={`${ball}-${index}`} className={cn("grid h-9 w-9 place-items-center rounded-full text-xs font-black", ball === "W" ? "bg-red-600 text-white" : ball === "4" || ball === "6" ? "bg-amber-300 text-slate-950" : "bg-emerald-100 text-emerald-800")}>
+            <span
+              key={`${ball}-${index}`}
+              className={cn("last-ball-chip grid h-9 w-9 place-items-center rounded-full text-xs font-black", ball === "W" ? "bg-red-600 text-white" : ball === "4" || ball === "6" ? "bg-amber-300 text-slate-950" : "bg-emerald-100 text-emerald-800")}
+              style={{ animationDelay: `${index * 35}ms` }}
+            >
               {ball}
             </span>
           )) : <span className="text-sm font-bold text-slate-400">Waiting for first ball</span>}
           <span className="w-full text-sm font-bold text-slate-300 sm:ml-auto sm:w-auto">
-            {rrr ? `Need ${remainingRuns} from ${remainingBalls} balls` : `Fall: ${currentInnings?.fallOfWickets.join(", ") || "None"}`}
+            {rrr && remainingRuns !== undefined && remainingBalls !== undefined ? `Need ${remainingRuns} from ${remainingBalls} balls` : `Fall: ${currentInnings?.fallOfWickets.join(", ") || "None"}`}
           </span>
         </div>
         {live.commentary[0] ? (
-          <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50/55 px-3 py-2">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Latest commentary</p>
+          <div className="broadcast-commentary mt-3 rounded-lg border border-emerald-300/16 bg-[rgba(34,197,94,0.1)] px-3 py-2">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">Latest commentary</p>
             <p className="mt-1 text-sm font-semibold text-slate-300">{live.commentary[0].label} - {live.commentary[0].commentary}</p>
           </div>
         ) : null}

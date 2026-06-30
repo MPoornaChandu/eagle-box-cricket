@@ -1,66 +1,31 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, LockKeyhole } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
+import { EbLogoVideo } from "@/components/EbLogoVideo";
 import { LoginBackgroundVideo } from "@/components/LoginBackgroundVideo";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { adminLogin } from "@/lib/leagueStorage";
 
 const VIEWER_SESSION_KEY = "viewerSession";
-const ADMIN_EMAIL = "admin@eaglebox.com";
-
-function getAdminErrorMessage(error?: string) {
-  const normalized = (error ?? "").toLowerCase();
-
-  if (normalized.includes("authorized") || normalized.includes("allowed")) {
-    return "You are signed in but not authorized as admin.";
-  }
-
-  return "Invalid admin credentials.";
-}
 
 export default function EntryPage() {
   const router = useRouter();
   const [identity, setIdentity] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const value = identity.trim();
-    const adminPassword = password.trim();
 
     if (!value) {
       setError("Enter your name or email to continue.");
       return;
     }
 
-    const isAdminAttempt = Boolean(adminPassword) || value.toLowerCase() === ADMIN_EMAIL;
-
-    if (isAdminAttempt) {
-      setLoading(true);
-      setError("");
-
-      try {
-        const result = await adminLogin(value, password);
-
-        if (result.ok) {
-          router.push("/admin");
-          return;
-        }
-
-        setError(getAdminErrorMessage(result.error));
-      } catch {
-        setError("Invalid admin credentials.");
-      } finally {
-        setLoading(false);
-      }
-
-      return;
-    }
-
+    setLoading(true);
     window.localStorage.setItem(
       VIEWER_SESSION_KEY,
       JSON.stringify({ nameOrEmail: value, createdAt: new Date().toISOString() })
@@ -78,24 +43,29 @@ export default function EntryPage() {
       <div className="relative z-10 flex min-h-screen items-center px-4 py-10">
         <form
           onSubmit={submit}
-          className="unified-login-card mx-auto w-full max-w-md rounded-3xl border border-white/70 bg-white/80 p-6 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/80 sm:p-7"
+          className="login-card-reveal unified-login-card mx-auto w-[calc(100%_-_32px)] max-w-[25rem] rounded-2xl border border-[rgba(34,197,94,0.25)] bg-[rgba(8,18,16,0.45)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.34)] backdrop-blur-[22px] sm:p-6"
         >
-          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-emerald-300/40 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200">
-            <LockKeyhole className="h-6 w-6" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <EbLogoVideo />
+              <span className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-300/30 bg-emerald-500/15 text-emerald-100">
+                <ShieldCheck className="h-5 w-5" />
+              </span>
+            </div>
+            <Link href="/admin/login" className="rounded-full border border-emerald-300/20 px-3 py-1.5 text-xs font-black text-emerald-100 transition hover:border-emerald-300/50 hover:bg-emerald-400/10">
+              Admin Login
+            </Link>
           </div>
-          <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] text-emerald-700 dark:text-emerald-200">
+          <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
             EAGLE BOX CRICKET
           </p>
-          <h1 className="mt-2 text-4xl font-black leading-tight text-[var(--text-strong)]">Enter the League</h1>
-          <p className="mt-3 text-base font-bold leading-7 text-[var(--text)]">
-            Sign in as admin or continue as viewer.
-          </p>
-          <p className="mt-2 text-sm font-semibold leading-6 text-[var(--text-muted)]">
-            Admins use registered Supabase credentials. Viewers can continue with name or email.
+          <h1 className="mt-2 text-3xl font-black leading-tight text-white">Enter Eagle Box</h1>
+          <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">
+            Continue as viewer or sign in as admin.
           </p>
 
-          <label className="field-label mt-6">
-            Email or name
+          <label className="field-label mt-5 text-slate-200">
+            Your name or email
             <input
               value={identity}
               onChange={(event) => {
@@ -103,33 +73,20 @@ export default function EntryPage() {
                 setError("");
               }}
               type="text"
-              placeholder="admin@eaglebox.com or your name"
+              placeholder="Your name or email"
               autoComplete="username"
               autoFocus
             />
           </label>
-          <label className="field-label mt-4">
-            Password optional
-            <input
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-                setError("");
-              }}
-              type="password"
-              placeholder="Only admins need a password"
-              autoComplete="current-password"
-            />
-          </label>
 
-          {error ? <p className="mt-4 text-sm font-bold text-red-600 dark:text-red-200">{error}</p> : null}
+          {error ? <p className="mt-4 text-sm font-bold text-red-200">{error}</p> : null}
 
           <button
             type="submit"
             disabled={loading}
             className="premium-button mt-6 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm"
           >
-            {loading ? "Signing in..." : "Continue"}
+            {loading ? "Continuing..." : "Continue as Viewer"}
             <ArrowRight className="h-4 w-4" />
           </button>
         </form>

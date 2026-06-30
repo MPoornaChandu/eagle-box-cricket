@@ -21,11 +21,11 @@ import {
 } from "lucide-react";
 import { EbLogoVideo } from "@/components/EbLogoVideo";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { adminLogout, isAdminSessionActive } from "@/lib/leagueStorage";
+import { adminLogout, getCurrentAdminSession, isAdminSessionActive } from "@/lib/leagueStorage";
 import { cn } from "@/lib/utils";
 
 const adminNav = [
-  { href: "/admin", label: "Dashboard", icon: Home },
+  { href: "/admin/dashboard", label: "Dashboard", icon: Home },
   { href: "/admin/live-score", label: "Live Score Control", icon: Radio },
   { href: "/admin/teams", label: "Teams", icon: Users },
   { href: "/admin/players", label: "Players", icon: UserRound },
@@ -41,6 +41,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -52,6 +53,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         router.replace("/admin/login");
         return;
       }
+      setAdminEmail(getCurrentAdminSession()?.email ?? "");
       setChecking(false);
     }
 
@@ -64,7 +66,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await adminLogout();
-    router.replace("/");
+    router.replace("/admin/login");
   };
 
   if (checking) {
@@ -80,7 +82,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="league-admin min-h-screen">
       <aside className="admin-sidebar fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-white/10 p-4 lg:block">
-        <Link href="/admin" className="mb-5 flex items-center gap-3 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
+        <Link href="/admin/dashboard" className="mb-5 flex items-center gap-3 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
           <EbLogoVideo />
           <span>
             <span className="block text-sm font-black text-white">Admin Control</span>
@@ -88,12 +90,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
               <Shield className="h-3.5 w-3.5" />
               Protected access
             </span>
+            {adminEmail ? <span className="mt-1 block truncate text-xs font-bold text-slate-300">{adminEmail}</span> : null}
           </span>
         </Link>
         <nav className="grid gap-1">
           {adminNav.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active = pathname === item.href || (item.href === "/admin/dashboard" && pathname === "/admin");
             return (
               <Link
                 key={item.href}
@@ -120,7 +123,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       <header className="admin-mobile-header sticky top-0 z-30 border-b border-white/10 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="flex items-center justify-between gap-3">
-          <Link href="/admin" className="font-black text-white">Admin</Link>
+          <Link href="/admin/dashboard" className="min-w-0 font-black text-white">
+            <span className="block">Admin</span>
+            {adminEmail ? <span className="block truncate text-xs font-bold text-slate-400">{adminEmail}</span> : null}
+          </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle compact />
             <button

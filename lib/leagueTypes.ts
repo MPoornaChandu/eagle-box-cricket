@@ -133,6 +133,11 @@ export interface BallEvent {
   runs: number;
   extras: number;
   wicket: boolean;
+  wicketDetails?: {
+    dismissalType: string;
+    fielderId?: string;
+    newBatsmanId?: string;
+  };
   label: string;
   commentary: string;
   createdAt: string;
