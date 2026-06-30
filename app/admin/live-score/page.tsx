@@ -62,6 +62,13 @@ export default function AdminLiveScorePage() {
   const [supabaseSummary, setSupabaseSummary] = useState("");
   const [supabaseLiveMatch, setSupabaseLiveMatch] = useState<SupabaseLiveMatchRow | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ label: string; action: () => void } | null>(null);
+  
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    window.setTimeout(() => setToast(null), 3500);
+  };
 
   const load = () => {
     const nextTeams = getTeams();
@@ -167,7 +174,10 @@ export default function AdminLiveScorePage() {
           applySupabaseBallUpdate({ match, event, currentLiveMatch: supabaseLiveMatch })
         );
         updateSupabaseSummary(result.liveMatch);
-        if (!timedOut) setSyncMessage("Inserted ball_events row and updated Supabase live_matches.");
+        if (!timedOut) {
+            setSyncMessage("Inserted ball_events row and updated Supabase live_matches.");
+            showToast(`Ball event recorded: ${type}${type === 'run' ? ` (${value} runs)` : ''}`);
+          }
       } else {
         setSyncMessage("Supabase is not configured, so ball event is saved locally.");
       }
@@ -192,7 +202,7 @@ export default function AdminLiveScorePage() {
           applySupabaseBallUpdate({ match, currentLiveMatch: supabaseLiveMatch })
         );
         updateSupabaseSummary(result.liveMatch);
-        if (!timedOut) setSyncMessage("Manual correction updated Supabase live_matches.");
+        if (!timedOut) { setSyncMessage("Manual correction updated Supabase live_matches."); showToast("Manual correction applied."); }
       } else {
         setSyncMessage("Supabase is not configured, so live score is saved locally.");
       }
@@ -218,7 +228,7 @@ export default function AdminLiveScorePage() {
           applySupabaseBallUpdate({ match, currentLiveMatch: supabaseLiveMatch })
         );
         updateSupabaseSummary(result.liveMatch);
-        if (!timedOut) setSyncMessage("Undo updated Supabase live_matches.");
+        if (!timedOut) { setSyncMessage("Undo updated Supabase live_matches."); showToast("Last ball undone successfully."); }
       } else {
         setSyncMessage("Supabase is not configured, so live score is saved locally.");
       }
@@ -270,7 +280,7 @@ export default function AdminLiveScorePage() {
           return currentLiveRow ? updateSupabaseLiveMatch(currentLiveRow.id, { status: "completed" }) : null;
         });
         updateSupabaseSummary(liveRow);
-        if (!timedOut) setSyncMessage("Match completed.");
+        if (!timedOut) { setSyncMessage("Match completed."); showToast("Match completed successfully! 🏆", "success"); }
       } else {
         setSyncMessage("Match completed.");
       }
@@ -316,9 +326,9 @@ export default function AdminLiveScorePage() {
               {eventButtons.map((event) => <button key={event.label} type="button" disabled={syncing} onClick={() => void addEvent(event.type, event.value)} className={event.type === "wicket" ? "danger-button px-3 py-3 text-sm font-black" : "secondary-button px-3 py-3 text-sm font-black"}>{event.label}</button>)}
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <button type="button" onClick={undo} className="secondary-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm font-black"><RotateCcw className="h-4 w-4" />Undo Last Ball</button>
+              <button type="button" onClick={() => setConfirmAction({ label: "Undo the last ball event?", action: undo })} className="secondary-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm font-black"><RotateCcw className="h-4 w-4" />Undo Last Ball</button>
               <button type="button" onClick={endInnings} className="secondary-button px-3 py-3 text-sm font-black">End Innings</button>
-              <button type="button" onClick={complete} className="premium-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm"><SquareCheckBig className="h-4 w-4" />Complete Match</button>
+              <button type="button" onClick={() => setConfirmAction({ label: "Complete this match? This cannot be undone.", action: complete })} className="premium-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm"><SquareCheckBig className="h-4 w-4" />Complete Match</button>
             </div>
           </section>
           <section className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
@@ -333,6 +343,24 @@ export default function AdminLiveScorePage() {
         </div>
         <LiveScorePanel match={liveMatch} teams={teams} players={players} />
       </section>
+      {/* Toast notification */}
+      {toast ? (
+        <div className={`fixed bottom-6 right-6 z-50 rounded-xl border px-5 py-3 text-sm font-black shadow-2xl transition ${toast.type === "error" ? "border-red-300/30 bg-red-950 text-red-200" : "border-emerald-300/30 bg-emerald-950 text-emerald-200"}`}>
+          {toast.message}
+        </div>
+      ) : null}
+      {/* Confirmation dialog */}
+      {confirmAction ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+            <p className="text-lg font-black text-white">{confirmAction.label}</p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setConfirmAction(null)} className="secondary-button px-4 py-2 text-sm font-black">Cancel</button>
+              <button type="button" onClick={() => { confirmAction.action(); setConfirmAction(null); }} className="premium-button px-4 py-2 text-sm">Confirm</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AdminShell>
   );
 }
