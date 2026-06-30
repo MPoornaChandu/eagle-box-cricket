@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { LeagueShell } from "@/components/league/LeagueShell";
 import { MatchCard, PlayerCard, TeamBadge } from "@/components/league/LeagueCards";
 import type { Match, Player, Team } from "@/lib/leagueTypes";
-import { getMatches, getPlayers, getTeam, getTeams, playersForTeam } from "@/lib/leagueStorage";
+import { calculatePointsTable, getMatches, getPlayers, getTeam, getTeams, playersForTeam } from "@/lib/leagueStorage";
 
 export default function TeamDetailsPage() {
   const params = useParams<{ id: string }>();
@@ -23,6 +23,7 @@ export default function TeamDetailsPage() {
   const team = getTeam(params.id, teams);
   const squad = playersForTeam(params.id, players);
   const teamMatches = useMemo(() => matches.filter((match) => match.teamAId === params.id || match.teamBId === params.id), [matches, params.id]);
+  const tableRow = useMemo(() => calculatePointsTable(teams, matches).find((row) => row.teamId === params.id), [matches, params.id, teams]);
   const recent = teamMatches.filter((match) => match.status === "completed").slice(0, 3);
   const upcoming = teamMatches.filter((match) => match.status !== "completed").slice(0, 3);
   const topPerformers = [...squad].sort((a, b) => b.runs + b.wickets * 18 - (a.runs + a.wickets * 18)).slice(0, 3);
@@ -47,6 +48,8 @@ export default function TeamDetailsPage() {
         <section className="mt-8 grid gap-4 md:grid-cols-3">
           <Info label="Matches" value={team.matches} />
           <Info label="Wins" value={team.wins} />
+          <Info label="Losses" value={tableRow?.lost ?? Math.max(team.matches - team.wins, 0)} />
+          <Info label="NRR" value={tableRow?.nrr.toFixed(3) ?? "0.000"} />
           <Info label="Squad" value={squad.length} />
         </section>
         <section className="mt-8">

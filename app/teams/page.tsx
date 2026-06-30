@@ -7,7 +7,7 @@ import { useLeagueData } from "@/components/league/useLeagueData";
 import { playersForTeam } from "@/lib/leagueStorage";
 
 export default function TeamsPage() {
-  const { teams, players } = useLeagueData();
+  const { teams, players, pointsTable } = useLeagueData();
 
   return (
     <LeagueShell>
@@ -17,6 +17,7 @@ export default function TeamsPage() {
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {teams.map((team) => {
             const squad = playersForTeam(team.id, players);
+            const row = pointsTable.find((item) => item.teamId === team.id);
             return (
               <Link key={team.id} href={`/teams/${team.id}`} className="sport-card rounded-lg border border-white/10 bg-white/[0.055] p-5 transition hover:-translate-y-1 hover:border-emerald-300/35">
                 <div className="flex items-center gap-3">
@@ -27,11 +28,14 @@ export default function TeamsPage() {
                   </div>
                 </div>
                 <p className="mt-4 text-sm text-slate-300">Captain {team.captain}</p>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                <div className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
                   <span className="rounded-lg bg-slate-950/38 p-3"><span className="block text-lg font-black text-white">{team.matches}</span><span className="text-xs text-slate-400">Matches</span></span>
                   <span className="rounded-lg bg-slate-950/38 p-3"><span className="block text-lg font-black text-white">{team.wins}</span><span className="text-xs text-slate-400">Wins</span></span>
+                  <span className="rounded-lg bg-slate-950/38 p-3"><span className="block text-lg font-black text-white">{row?.lost ?? Math.max(team.matches - team.wins, 0)}</span><span className="text-xs text-slate-400">Losses</span></span>
+                  <span className="rounded-lg bg-slate-950/38 p-3"><span className="block text-lg font-black text-white">{row?.nrr.toFixed(3) ?? "0.000"}</span><span className="text-xs text-slate-400">NRR</span></span>
                   <span className="rounded-lg bg-slate-950/38 p-3"><span className="block text-lg font-black text-white">{squad.length}</span><span className="text-xs text-slate-400">Players</span></span>
                 </div>
+                <span className="secondary-button mt-4 inline-flex px-4 py-2 text-sm font-black">View Squad</span>
               </Link>
             );
           })}

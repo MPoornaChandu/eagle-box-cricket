@@ -11,16 +11,16 @@ export default function PointsTablePage() {
 
   return (
     <LeagueShell>
-      <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">Standings</p>
+      <section className="mx-auto w-full max-w-[80rem] px-4 py-10 lg:px-6">
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">Standings</p>
         <h1 className="mt-2 text-4xl font-black text-white md:text-6xl">EBC Points Table</h1>
-        <p className="mt-3 max-w-2xl text-slate-300">Sorted by points, then net run rate, then wins. Top four are highlighted automatically.</p>
+        <p className="mt-3 max-w-2xl text-slate-300">Sorted by points, net run rate, and wins. Top four teams qualify.</p>
         <div className="mt-8">
           <PointsTable rows={pointsTable} teams={teams} />
         </div>
         <div className="mt-10">
           <div className="mb-4">
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-700">Playoffs</p>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">Playoffs</p>
             <h2 className="mt-2 text-3xl font-black text-white">Dynamic playoff bracket</h2>
           </div>
           <PlayoffBracket fixtures={bracket} />

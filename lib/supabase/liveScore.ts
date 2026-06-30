@@ -122,6 +122,7 @@ type LiveMatchWriteRow = {
   runs: number;
   wickets: number;
   balls: number;
+  target: number | null;
   current_run_rate: number;
   required_run_rate: number | null;
   partnership_runs: number;
@@ -357,6 +358,14 @@ function calculateStrikeRate(runs: number, balls: number) {
 
 function calculateEconomy(runs: number, balls: number) {
   return balls > 0 ? Number((runs / (balls / 6)).toFixed(2)) : 0;
+}
+
+function calculateRequiredRunRate(live: LiveMatchState, maxOvers = 20) {
+  if (!live.target || live.inningsNumber < 2) return null;
+  const runsRequired = Math.max(live.target - live.runs, 0);
+  const ballsRemaining = Math.max(maxOvers * 6 - live.balls, 0);
+  if (ballsRemaining <= 0) return runsRequired > 0 ? null : 0;
+  return Number((runsRequired / (ballsRemaining / 6)).toFixed(2));
 }
 
 function ballsToOvers(balls: number) {
@@ -665,8 +674,6 @@ function liveMatchPatch(match: Match, refs: LiveScoreReferences, playerIds: Map<
   const live = match.live;
   if (!live) throw new Error("Match is not live.");
   const innings = match.innings.find((item) => item.teamId === live.battingTeamId);
-  const remainingRuns = live.target ? Math.max(live.target - live.runs, 0) : undefined;
-  const remainingBalls = live.target ? Math.max(120 - live.balls, 1) : undefined;
 
   return {
     fixture_id: refs.fixtureId,
@@ -680,8 +687,9 @@ function liveMatchPatch(match: Match, refs: LiveScoreReferences, playerIds: Map<
     runs: live.runs,
     wickets: live.wickets,
     balls: live.balls,
+    target: live.target ?? null,
     current_run_rate: calculateRunRate(live.runs, live.balls),
-    required_run_rate: remainingRuns !== undefined && remainingBalls ? Number(((remainingRuns / remainingBalls) * 6).toFixed(2)) : null,
+    required_run_rate: calculateRequiredRunRate(live),
     partnership_runs: live.partnershipRuns,
     partnership_balls: live.partnershipBalls,
     last_wicket: live.lastWicket ?? null,

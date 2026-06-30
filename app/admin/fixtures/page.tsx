@@ -6,6 +6,8 @@ import { AdminShell } from "@/components/league/AdminShell";
 import { MatchCard } from "@/components/league/LeagueCards";
 import type { Match, MatchStatus, Team } from "@/lib/leagueTypes";
 import { addMatch, deleteMatch, getMatches, getTeams, updateMatch } from "@/lib/leagueStorage";
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { formatSupabaseError } from "@/lib/supabase/liveScore";
 
 const emptyForm = { teamAId: "", teamBId: "", dateTime: "", venue: "", matchType: "League", status: "upcoming" as MatchStatus };
 
@@ -23,11 +25,39 @@ export default function AdminFixturesPage() {
   };
   useEffect(load, []);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const syncFixtureToSupabase = async (match: Match) => {
+    if (!isSupabaseConfigured()) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const date = new Date(match.dateTime);
+    const { error: supabaseError } = await supabase.from("fixtures").upsert(
+      {
+        app_id: match.id,
+        match_id: match.matchNumber,
+        team_a_id: null,
+        team_b_id: null,
+        date: Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10),
+        time: Number.isNaN(date.getTime()) ? null : date.toISOString().slice(11, 16),
+        venue: match.venue,
+        match_type: match.matchType,
+        status: match.status,
+        payload: match,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "app_id" }
+    );
+    if (supabaseError) {
+      console.error("Supabase fixture sync error:", formatSupabaseError(supabaseError), supabaseError);
+      throw new Error(formatSupabaseError(supabaseError));
+    }
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
     try {
-      addMatch(form);
+      const match = addMatch(form);
+      await syncFixtureToSupabase(match);
       setForm({ ...emptyForm, teamAId: teams[0]?.id ?? "", teamBId: teams[1]?.id ?? "" });
       load();
     } catch (err) {

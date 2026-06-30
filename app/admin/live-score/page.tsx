@@ -1,10 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { RotateCcw, Save, SquareCheckBig } from "lucide-react";
+import { ChevronDown, RotateCcw, Save, SquareCheckBig } from "lucide-react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AdminShell } from "@/components/league/AdminShell";
 import { LiveScorePanel } from "@/components/league/LeagueCards";
-import type { BallEventType, Match, Player, Team } from "@/lib/leagueTypes";
+import { useToast } from "@/components/ToastProvider";
+import type { BallEvent, BallEventType, Match, Player, Team } from "@/lib/leagueTypes";
 import {
   ballsToOvers,
   completeLiveMatch,
@@ -46,8 +48,11 @@ const eventButtons: Array<{ label: string; type: BallEventType; value: number }>
 
 const SYNC_TIMEOUT_MS = 6000;
 const SLOW_SYNC_MESSAGE = "Score saved locally, Supabase is taking longer than expected. Check connection.";
+const dismissalTypes = ["Bowled", "Caught", "LBW", "Run Out", "Stumped", "Hit Wicket", "Retired"];
+const fielderDismissals = new Set(["Caught", "Run Out", "Stumped"]);
 
 export default function AdminLiveScorePage() {
+  const { showToast } = useToast();
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -62,13 +67,11 @@ export default function AdminLiveScorePage() {
   const [supabaseSummary, setSupabaseSummary] = useState("");
   const [supabaseLiveMatch, setSupabaseLiveMatch] = useState<SupabaseLiveMatchRow | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ label: string; action: () => void } | null>(null);
-  
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    window.setTimeout(() => setToast(null), 3500);
-  };
+  const [wicketOpen, setWicketOpen] = useState(false);
+  const [undoOpen, setUndoOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [wicketForm, setWicketForm] = useState({ dismissalType: "Bowled", fielderId: "", newBatsmanId: "" });
 
   const load = () => {
     const nextTeams = getTeams();
@@ -93,6 +96,13 @@ export default function AdminLiveScorePage() {
   const bowlingTeamId = selectedMatch ? (selectedMatch.teamAId === battingTeamId ? selectedMatch.teamBId : selectedMatch.teamAId) : "";
   const bowlingPlayers = bowlingTeamId ? playersForTeam(bowlingTeamId, players) : [];
   const liveMatch = getLiveMatch();
+  const liveState = selectedMatch?.live;
+  const currentInnings = selectedMatch?.innings.find((innings) => innings.teamId === liveState?.battingTeamId);
+  const availableNewBatsmen = battingPlayers.filter((player) => {
+    if (player.id === liveState?.strikerId || player.id === liveState?.nonStrikerId) return false;
+    return !currentInnings?.batting.find((line) => line.playerId === player.id && line.out);
+  });
+  const showFielderInput = fielderDismissals.has(wicketForm.dismissalType);
 
   useEffect(() => {
     if (!strikerId && battingPlayers[0]) setStrikerId(battingPlayers[0].id);
@@ -106,6 +116,19 @@ export default function AdminLiveScorePage() {
     if (!row) return;
     setSupabaseLiveMatch(row);
     setSupabaseSummary(`${row.runs ?? 0}/${row.wickets ?? 0} in ${ballsToOvers(row.balls ?? 0)}`);
+  };
+
+  const showScoringToast = (type: BallEventType, value: number) => {
+    if (type === "wicket") {
+      showToast({ type: "error", title: "Wicket recorded" });
+      return;
+    }
+    if (type === "wide" || type === "no-ball" || type === "bye" || type === "leg-bye") {
+      showToast({ type: "warning", title: `${type === "no-ball" ? "No-ball" : type.replace("-", " ")} added` });
+      return;
+    }
+    const runs = type === "four" ? 4 : type === "six" ? 6 : value;
+    showToast({ type: "success", title: `${runs} run${runs === 1 ? "" : "s"} added` });
   };
 
   async function runSupabaseRequest<T>(operation: () => Promise<T>) {
@@ -161,13 +184,14 @@ export default function AdminLiveScorePage() {
     }
   };
 
-  const addEvent = async (type: BallEventType, value: number) => {
+  const addEvent = async (type: BallEventType, value: number, wicketDetails?: BallEvent["wicketDetails"]) => {
     setSyncError("");
     setSyncMessage("");
     try {
-      const match = recordBallEvent(selectedMatchId, type, value, { syncSnapshot: false });
+      const match = recordBallEvent(selectedMatchId, type, value, { syncSnapshot: false, wicketDetails });
       const event = match.live?.commentary[0];
       applyLocalMatch(match);
+      showScoringToast(type, value);
       if (isSupabaseConfigured()) {
         setSyncing(true);
         const { data: result, timedOut } = await runSupabaseRequest(() =>
@@ -175,9 +199,13 @@ export default function AdminLiveScorePage() {
         );
         updateSupabaseSummary(result.liveMatch);
         if (!timedOut) {
-            setSyncMessage("Inserted ball_events row and updated Supabase live_matches.");
-            showToast(`Ball event recorded: ${type}${type === 'run' ? ` (${value} runs)` : ''}`);
-          }
+          setSyncMessage("Inserted ball_events row and updated Supabase live_matches.");
+          showToast({
+            type: "success",
+            title: "Ball event synced",
+            description: `${type}${type === "run" ? ` (${value} runs)` : ""}`
+          });
+        }
       } else {
         setSyncMessage("Supabase is not configured, so ball event is saved locally.");
       }
@@ -202,7 +230,10 @@ export default function AdminLiveScorePage() {
           applySupabaseBallUpdate({ match, currentLiveMatch: supabaseLiveMatch })
         );
         updateSupabaseSummary(result.liveMatch);
-        if (!timedOut) { setSyncMessage("Manual correction updated Supabase live_matches."); showToast("Manual correction applied."); }
+        if (!timedOut) {
+          setSyncMessage("Manual correction updated Supabase live_matches.");
+          showToast({ type: "success", title: "Manual correction applied" });
+        }
       } else {
         setSyncMessage("Supabase is not configured, so live score is saved locally.");
       }
@@ -228,7 +259,10 @@ export default function AdminLiveScorePage() {
           applySupabaseBallUpdate({ match, currentLiveMatch: supabaseLiveMatch })
         );
         updateSupabaseSummary(result.liveMatch);
-        if (!timedOut) { setSyncMessage("Undo updated Supabase live_matches."); showToast("Last ball undone successfully."); }
+        if (!timedOut) {
+          setSyncMessage("Undo updated Supabase live_matches.");
+          showToast({ type: "success", title: "Last ball undone successfully" });
+        }
       } else {
         setSyncMessage("Supabase is not configured, so live score is saved locally.");
       }
@@ -280,7 +314,10 @@ export default function AdminLiveScorePage() {
           return currentLiveRow ? updateSupabaseLiveMatch(currentLiveRow.id, { status: "completed" }) : null;
         });
         updateSupabaseSummary(liveRow);
-        if (!timedOut) { setSyncMessage("Match completed."); showToast("Match completed successfully! 🏆", "success"); }
+        if (!timedOut) {
+          setSyncMessage("Match completed.");
+          showToast({ type: "success", title: "Match completed successfully" });
+        }
       } else {
         setSyncMessage("Match completed.");
       }
@@ -291,6 +328,20 @@ export default function AdminLiveScorePage() {
       setSyncing(false);
       load();
     }
+  };
+
+  const submitWicket = async () => {
+    if (!wicketForm.newBatsmanId && availableNewBatsmen.length) {
+      setSyncError("Select the new batsman before recording the wicket.");
+      return;
+    }
+    setWicketOpen(false);
+    await addEvent("wicket", 0, {
+      dismissalType: wicketForm.dismissalType,
+      fielderId: showFielderInput ? wicketForm.fielderId || undefined : undefined,
+      newBatsmanId: wicketForm.newBatsmanId || undefined
+    });
+    setWicketForm({ dismissalType: "Bowled", fielderId: "", newBatsmanId: "" });
   };
 
   const liveSummary = useMemo(() => {
@@ -323,44 +374,107 @@ export default function AdminLiveScorePage() {
             {supabaseSummary ? <p className="mt-2 text-sm font-bold text-slate-300">Supabase saved score: {supabaseSummary}</p> : null}
             {syncError ? <p className="mt-3 rounded-lg border border-red-300/30 bg-red-500/10 p-3 text-sm font-bold text-red-200">{syncError}</p> : null}
             <div className="mt-4 grid grid-cols-3 gap-2">
-              {eventButtons.map((event) => <button key={event.label} type="button" disabled={syncing} onClick={() => void addEvent(event.type, event.value)} className={event.type === "wicket" ? "danger-button px-3 py-3 text-sm font-black" : "secondary-button px-3 py-3 text-sm font-black"}>{event.label}</button>)}
+              {eventButtons.map((event) => (
+                <button
+                  key={event.label}
+                  type="button"
+                  disabled={syncing}
+                  onClick={() => event.type === "wicket" ? setWicketOpen(true) : void addEvent(event.type, event.value)}
+                  className={event.type === "wicket" ? "danger-button px-3 py-3 text-sm font-black" : "secondary-button px-3 py-3 text-sm font-black"}
+                >
+                  {event.label}
+                </button>
+              ))}
             </div>
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <button type="button" onClick={() => setConfirmAction({ label: "Undo the last ball event?", action: undo })} className="secondary-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm font-black"><RotateCcw className="h-4 w-4" />Undo Last Ball</button>
+              <button type="button" onClick={() => setUndoOpen(true)} className="secondary-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm font-black"><RotateCcw className="h-4 w-4" />Undo Last Ball</button>
               <button type="button" onClick={endInnings} className="secondary-button px-3 py-3 text-sm font-black">End Innings</button>
-              <button type="button" onClick={() => setConfirmAction({ label: "Complete this match? This cannot be undone.", action: complete })} className="premium-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm"><SquareCheckBig className="h-4 w-4" />Complete Match</button>
+              <button type="button" onClick={() => setCompleteOpen(true)} className="premium-button inline-flex items-center justify-center gap-2 px-3 py-3 text-sm"><SquareCheckBig className="h-4 w-4" />Complete Match</button>
             </div>
           </section>
           <section className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
-            <h2 className="text-2xl font-black text-white">Manual correction</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <label className="field-label">Runs<input type="number" value={manual.runs} onChange={(event) => setManual({ ...manual, runs: Number(event.target.value) })} /></label>
-              <label className="field-label">Wickets<input type="number" value={manual.wickets} onChange={(event) => setManual({ ...manual, wickets: Number(event.target.value) })} /></label>
-              <label className="field-label">Balls<input type="number" value={manual.balls} onChange={(event) => setManual({ ...manual, balls: Number(event.target.value) })} /></label>
-            </div>
-            <button type="button" onClick={applyManual} className="secondary-button mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-black"><Save className="h-4 w-4" />Apply</button>
+            <button type="button" onClick={() => setManualOpen((current) => !current)} className="flex w-full items-center justify-between gap-3 text-left">
+              <span>
+                <span className="block text-2xl font-black text-white">Manual Correction (Use with caution)</span>
+                <span className="mt-1 block text-sm text-slate-400">Only use this to fix scoring errors. Changes are applied immediately to the live scorecard.</span>
+              </span>
+              <ChevronDown className={manualOpen ? "h-5 w-5 rotate-180 text-emerald-200 transition" : "h-5 w-5 text-emerald-200 transition"} />
+            </button>
+            {manualOpen ? (
+              <>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <label className="field-label">Runs<input type="number" value={manual.runs} onChange={(event) => setManual({ ...manual, runs: Number(event.target.value) })} /></label>
+                  <label className="field-label">Wickets<input type="number" value={manual.wickets} onChange={(event) => setManual({ ...manual, wickets: Number(event.target.value) })} /></label>
+                  <label className="field-label">Balls<input type="number" value={manual.balls} onChange={(event) => setManual({ ...manual, balls: Number(event.target.value) })} /></label>
+                </div>
+                <button type="button" onClick={applyManual} className="secondary-button mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-black"><Save className="h-4 w-4" />Apply</button>
+              </>
+            ) : null}
           </section>
         </div>
         <LiveScorePanel match={liveMatch} teams={teams} players={players} />
       </section>
-      {/* Toast notification */}
-      {toast ? (
-        <div className={`fixed bottom-6 right-6 z-50 rounded-xl border px-5 py-3 text-sm font-black shadow-2xl transition ${toast.type === "error" ? "border-red-300/30 bg-red-950 text-red-200" : "border-emerald-300/30 bg-emerald-950 text-emerald-200"}`}>
-          {toast.message}
-        </div>
-      ) : null}
-      {/* Confirmation dialog */}
-      {confirmAction ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
-            <p className="text-lg font-black text-white">{confirmAction.label}</p>
-            <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setConfirmAction(null)} className="secondary-button px-4 py-2 text-sm font-black">Cancel</button>
-              <button type="button" onClick={() => { confirmAction.action(); setConfirmAction(null); }} className="premium-button px-4 py-2 text-sm">Confirm</button>
+      {wicketOpen ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/78 p-4 backdrop-blur-md">
+          <div className="glass-panel w-full max-w-lg rounded-lg p-5">
+            <h2 className="text-2xl font-black text-white">Record wicket</h2>
+            <div className="mt-4 grid gap-4">
+              <label className="field-label">
+                Dismissal type
+                <select
+                  value={wicketForm.dismissalType}
+                  onChange={(event) => setWicketForm({ ...wicketForm, dismissalType: event.target.value, fielderId: "" })}
+                >
+                  {dismissalTypes.map((type) => <option key={type}>{type}</option>)}
+                </select>
+              </label>
+              {showFielderInput ? (
+                <label className="field-label">
+                  Fielder involved
+                  <select value={wicketForm.fielderId} onChange={(event) => setWicketForm({ ...wicketForm, fielderId: event.target.value })}>
+                    <option value="">Select fielder</option>
+                    {bowlingPlayers.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                  </select>
+                </label>
+              ) : null}
+              <label className="field-label">
+                New batsman
+                <select value={wicketForm.newBatsmanId} onChange={(event) => setWicketForm({ ...wicketForm, newBatsmanId: event.target.value })}>
+                  <option value="">Select new batsman</option>
+                  {availableNewBatsmen.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setWicketOpen(false)} className="secondary-button px-4 py-2">Cancel</button>
+              <button type="button" onClick={() => void submitWicket()} className="danger-button px-4 py-2">Submit Wicket</button>
             </div>
           </div>
         </div>
       ) : null}
+      <ConfirmDialog
+        open={undoOpen}
+        title="Undo last ball?"
+        description="This will revert the most recent ball event and resync the live score."
+        confirmText="Undo Last Ball"
+        onClose={() => setUndoOpen(false)}
+        onConfirm={() => {
+          setUndoOpen(false);
+          void undo();
+        }}
+      />
+      <ConfirmDialog
+        open={completeOpen}
+        title="Complete match?"
+        description="Are you sure you want to complete this match? This action cannot be undone."
+        confirmText="Confirm Complete Match"
+        tone="danger"
+        onClose={() => setCompleteOpen(false)}
+        onConfirm={() => {
+          setCompleteOpen(false);
+          void complete();
+        }}
+      />
     </AdminShell>
   );
 }

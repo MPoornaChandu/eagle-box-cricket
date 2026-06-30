@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarPlus, Radio, Trophy, UserPlus, Users } from "lucide-react";
+import { BarChart3, CalendarPlus, Radio, Settings, Trophy, UserRound } from "lucide-react";
 import { AdminShell } from "@/components/league/AdminShell";
 import { LiveScorePanel, PointsTable, StatPill } from "@/components/league/LeagueCards";
 import type { Match, Player, PointsTableRow, Team } from "@/lib/leagueTypes";
-import { calculatePointsTable, getLiveMatch, getMatches, getPlayers, getTeams } from "@/lib/leagueStorage";
+import { calculatePointsTable, getLiveMatch, getMatches, getPlayers, getTeam, getTeams, topPlayers } from "@/lib/leagueStorage";
 
 export default function AdminDashboardPage() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -27,35 +27,71 @@ export default function AdminDashboardPage() {
 
   const stats = useMemo(() => {
     const completed = matches.filter((match) => match.status === "completed");
-    const pending = matches.filter((match) => match.status === "upcoming");
+    const pending = matches
+      .filter((match) => match.status === "upcoming")
+      .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
     const topTeam = points[0] ? teams.find((team) => team.id === points[0].teamId)?.name ?? "TBA" : "TBA";
-    return { completed: completed.length, pending: pending.length, topTeam };
-  }, [matches, points, teams]);
+    const totalRuns = completed.reduce((sum, match) => sum + (match.result?.teamARuns ?? 0) + (match.result?.teamBRuns ?? 0), 0);
+    const totalWickets = completed.reduce((sum, match) => sum + (match.result?.teamAWickets ?? 0) + (match.result?.teamBWickets ?? 0), 0);
+    const leaders = topPlayers(players);
+    const nextMatch = pending[0];
+    const countdown = nextMatch
+      ? Math.max(0, new Date(nextMatch.dateTime).getTime() - Date.now())
+      : 0;
+    const days = Math.floor(countdown / 86_400_000);
+    const hours = Math.floor((countdown % 86_400_000) / 3_600_000);
+    return {
+      completed: completed.length,
+      pending: pending.length,
+      topTeam,
+      totalRuns,
+      totalWickets,
+      topRunScorer: leaders.runs,
+      topWicketTaker: leaders.wickets,
+      nextMatch,
+      countdownText: nextMatch ? `${days}d ${hours}h` : "No upcoming match"
+    };
+  }, [matches, players, points, teams]);
 
   return (
     <AdminShell>
       <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">Control room</p>
       <h1 className="mt-2 text-4xl font-black text-white">Admin Dashboard</h1>
       <section className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatPill label="Total teams" value={teams.length} />
-        <StatPill label="Total players" value={players.length} />
-        <StatPill label="Total matches" value={matches.length} />
+        <StatPill label="Matches played" value={stats.completed} />
+        <StatPill label="Total runs" value={stats.totalRuns} />
+        <StatPill label="Total wickets" value={stats.totalWickets} />
         <StatPill label="Live match" value={liveMatch ? liveMatch.matchNumber : "None"} />
-        <StatPill label="Completed" value={stats.completed} />
-        <StatPill label="Pending fixtures" value={stats.pending} />
-        <StatPill label="Top team" value={stats.topTeam} />
-        <StatPill label="Points rule" value="Win = 2" />
+      </section>
+      <section className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">Top run-scorer</p>
+          <h2 className="mt-2 text-2xl font-black text-white">{stats.topRunScorer?.name ?? "TBA"}</h2>
+          <p className="mt-1 text-sm font-bold text-slate-400">{stats.topRunScorer?.runs ?? 0} runs</p>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-red-200">Top wicket-taker</p>
+          <h2 className="mt-2 text-2xl font-black text-white">{stats.topWicketTaker?.name ?? "TBA"}</h2>
+          <p className="mt-1 text-sm font-bold text-slate-400">{stats.topWicketTaker?.wickets ?? 0} wickets</p>
+        </div>
+        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">Upcoming match countdown</p>
+          <h2 className="mt-2 text-2xl font-black text-white">{stats.countdownText}</h2>
+          <p className="mt-1 text-sm font-bold text-slate-400">
+            {stats.nextMatch ? `${stats.nextMatch.matchNumber}: ${getTeam(stats.nextMatch.teamAId, teams)?.shortCode} vs ${getTeam(stats.nextMatch.teamBId, teams)?.shortCode}` : "Schedule a fixture to start the clock."}
+          </p>
+        </div>
       </section>
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <LiveScorePanel match={liveMatch} teams={teams} players={players} />
         <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
           <h2 className="text-2xl font-black text-white">Quick actions</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Action href="/admin/teams" icon={<Users className="h-4 w-4" />} label="Add Team" />
-            <Action href="/admin/players" icon={<UserPlus className="h-4 w-4" />} label="Add Player" />
-            <Action href="/admin/fixtures" icon={<CalendarPlus className="h-4 w-4" />} label="Create Fixture" />
-            <Action href="/admin/live-score" icon={<Radio className="h-4 w-4" />} label="Start Live Match" />
-            <Action href="/admin/live-score" icon={<Radio className="h-4 w-4" />} label="Update Score" />
+            <Action href="/admin/live-score" icon={<Radio className="h-4 w-4" />} label="Live Score Control" />
+            <Action href="/admin/fixtures" icon={<CalendarPlus className="h-4 w-4" />} label="Manage Fixtures" />
+            <Action href="/admin/players" icon={<UserRound className="h-4 w-4" />} label="Manage Players" />
+            <Action href="/admin/reports" icon={<BarChart3 className="h-4 w-4" />} label="Reports" />
+            <Action href="/admin/settings" icon={<Settings className="h-4 w-4" />} label="Settings" />
             <Action href="/admin/results" icon={<Trophy className="h-4 w-4" />} label="Enter Result" />
           </div>
         </div>

@@ -34,6 +34,7 @@ const ADMIN_KEY = "ebc_ipl_admin_logged_in";
 const ADMIN_SESSION_KEY = "ebc_ipl_admin_session";
 const LEAGUE_SNAPSHOT_ID = "default";
 const DATA_VERSION = "2026-06-28-v2";
+const DEFAULT_MAX_OVERS = 20;
 
 const teamPalette = ["#0f9f6e", "#d9a441", "#e04f4f", "#316ce8", "#f47b20", "#7d5fff"];
 const nationalities = ["Indian", "Australian", "South African", "New Zealander", "Sri Lankan", "English"];
@@ -178,9 +179,7 @@ async function syncLiveRows(supabase: SupabaseClient, snapshot: LeagueSnapshotPa
   const nonStrikerId = idMap.playerIds.get(live.nonStrikerId) ?? null;
   const bowlerId = idMap.playerIds.get(live.bowlerId) ?? null;
   const currentRunRate = calculateRunRate(live.runs, live.balls);
-  const remainingRuns = live.target ? Math.max(live.target - live.runs, 0) : undefined;
-  const remainingBalls = live.target ? Math.max(120 - live.balls, 1) : undefined;
-  const requiredRunRate = remainingRuns !== undefined && remainingBalls ? Number(((remainingRuns / remainingBalls) * 6).toFixed(2)) : null;
+  const requiredRunRate = calculateRequiredRunRate(live) ?? null;
   const currentInnings = liveMatch.innings.find((innings) => innings.teamId === live.battingTeamId);
 
   const batsmenStats = Object.fromEntries(
@@ -1122,6 +1121,15 @@ export function savePlayers(players: Player[]) {
   writeJson(PLAYERS_KEY, players.map(hydratePlayer));
 }
 
+export function calculateRequiredRunRate(live?: Pick<LiveMatchState, "inningsNumber" | "target" | "runs" | "balls">, maxOvers = DEFAULT_MAX_OVERS) {
+  if (!live?.target || live.inningsNumber < 2) return undefined;
+  const runsRequired = Math.max(live.target - live.runs, 0);
+  const ballsRemaining = Math.max(maxOvers * 6 - live.balls, 0);
+  if (ballsRemaining <= 0) return runsRequired > 0 ? Infinity : 0;
+  const oversRemaining = ballsRemaining / 6;
+  return Number((runsRequired / oversRemaining).toFixed(2));
+}
+
 export function getMatches(): Match[] {
   ensureLeagueData();
   return readJson<Match[]>(MATCHES_KEY, []);
@@ -1570,7 +1578,12 @@ function eventCommentary(label: string, type: BallEventType, striker?: Player, b
   return `${batter} takes ${label} run${label === "1" ? "" : "s"}.`;
 }
 
-export function recordBallEvent(matchId: string, type: BallEventType, value = 0, options?: { syncSnapshot?: boolean }) {
+interface RecordBallEventOptions {
+  syncSnapshot?: boolean;
+  wicketDetails?: BallEvent["wicketDetails"];
+}
+
+export function recordBallEvent(matchId: string, type: BallEventType, value = 0, options?: RecordBallEventOptions) {
   const players = getPlayers();
   const matches = getMatches();
   const matchIndex = matches.findIndex((match) => match.id === matchId);
@@ -1596,6 +1609,10 @@ export function recordBallEvent(matchId: string, type: BallEventType, value = 0,
   const ball = (live.balls % 6) + (legalDelivery ? 1 : 0);
   const striker = getPlayer(live.strikerId, players);
   const bowler = getPlayer(live.bowlerId, players);
+  const fielder = options?.wicketDetails?.fielderId ? getPlayer(options.wicketDetails.fielderId, players) : undefined;
+  const wicketCommentary = options?.wicketDetails?.dismissalType
+    ? `${bowler?.name ?? "Bowler"} strikes. ${striker?.name ?? "Batter"} is out ${options.wicketDetails.dismissalType.toLowerCase()}${fielder ? ` by ${fielder.name}` : ""}.`
+    : eventCommentary(label, type, striker, bowler);
   const event: BallEvent = {
     id: createId("ball"),
     matchId,
@@ -1611,8 +1628,9 @@ export function recordBallEvent(matchId: string, type: BallEventType, value = 0,
     runs: batRuns,
     extras,
     wicket,
+    wicketDetails: wicket ? options?.wicketDetails : undefined,
     label,
-    commentary: eventCommentary(label, type, striker, bowler),
+    commentary: wicketCommentary,
     createdAt: new Date().toISOString()
   };
 
@@ -1625,7 +1643,9 @@ export function recordBallEvent(matchId: string, type: BallEventType, value = 0,
   if (type === "six") battingLine.sixes += 1;
   if (wicket) {
     battingLine.out = true;
-    battingLine.dismissal = `b ${bowler?.name ?? "Bowler"}`;
+    battingLine.dismissal = options?.wicketDetails?.dismissalType
+      ? `${options.wicketDetails.dismissalType}${fielder ? ` ${fielder.name}` : ""}`
+      : `b ${bowler?.name ?? "Bowler"}`;
   }
 
   if (legalDelivery) bowlingLine.balls += 1;
@@ -1654,6 +1674,13 @@ export function recordBallEvent(matchId: string, type: BallEventType, value = 0,
     const current = live.strikerId;
     live.strikerId = live.nonStrikerId;
     live.nonStrikerId = current;
+  }
+
+  if (wicket && options?.wicketDetails?.newBatsmanId) {
+    const newBatsmanId = options.wicketDetails.newBatsmanId;
+    if (live.nonStrikerId === newBatsmanId) live.nonStrikerId = live.strikerId;
+    live.strikerId = newBatsmanId;
+    getOrCreateBatter(innings, newBatsmanId);
   }
 
   const nextInnings = match.innings.some((item) => item.teamId === live.battingTeamId)
@@ -1988,6 +2015,10 @@ export async function adminLogout() {
 
 export function isAdminLoggedIn() {
   return Boolean(readAdminSession());
+}
+
+export function getCurrentAdminSession() {
+  return readAdminSession();
 }
 
 export async function isAdminSessionActive() {

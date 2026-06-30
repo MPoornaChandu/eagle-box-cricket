@@ -1,6 +1,10 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import LiveScorePageClient from "./LiveScorePageClient";
 
-// /live-score redirects to /live (the correct live scorecard page)
+export const metadata: Metadata = {
+  title: "Live Score | EBC League"
+};
+
 export default function LiveScorePage() {
-  redirect("/live");
+  return <LiveScorePageClient />;
 }

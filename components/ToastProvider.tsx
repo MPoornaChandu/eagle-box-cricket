@@ -36,7 +36,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (toast: ToastInput) => {
       const nextToast = { ...toast, id: createToastId() };
       setToasts((current) => [nextToast, ...current].slice(0, 4));
-      window.setTimeout(() => removeToast(nextToast.id), 3400);
+      window.setTimeout(() => removeToast(nextToast.id), 2000);
     },
     [removeToast]
   );
@@ -46,7 +46,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[80] grid w-[min(92vw,380px)] gap-3">
+      <div className="pointer-events-none fixed bottom-4 right-4 z-[80] grid w-[min(92vw,380px)] gap-3">
         <AnimatePresence>
           {toasts.map((toast) => {
             const Icon =
@@ -63,6 +63,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   toast.type === "success" &&
                     "border-emerald-400/35 bg-emerald-950/[0.72] text-emerald-50",
                   toast.type === "error" && "border-red-400/35 bg-red-950/[0.72] text-red-50",
+                  toast.type === "warning" && "border-amber-300/40 bg-amber-950/[0.78] text-amber-50",
                   toast.type === "info" && "border-emerald-400/35 bg-emerald-950/[0.72] text-emerald-50"
                 )}
               >
