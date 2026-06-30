@@ -21,7 +21,7 @@ export default function LivePage() {
       <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
         <p className="text-xs font-black uppercase tracking-[0.22em] text-red-600">Live score</p>
         <h1 className="mt-2 text-4xl font-black text-white md:text-6xl">Live Scorecard</h1>
-        <p className="mt-3 max-w-2xl text-slate-300">Updates live from admin scoring through Supabase Realtime, with local fallback refresh for demo mode.</p>
+        <p className="mt-3 max-w-2xl text-slate-300">Real-time live scoring from Supabase. Updates instantly as the admin scores each ball.</p>
 
         <div className="mt-6 flex gap-2 overflow-x-auto">
           {tabs.map((tab) => (

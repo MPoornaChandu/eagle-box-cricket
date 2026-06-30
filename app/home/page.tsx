@@ -46,7 +46,9 @@ export default function HomePage() {
     [matches]
   );
   const leaders = useMemo(() => topPlayers(players), [players]);
-  const leaderCards = [leaders.runs, leaders.wickets, leaders.strikeRate, leaders.economy].filter(Boolean) as Player[];
+  const leaderCards = [leaders.runs, leaders.wickets, leaders.strikeRate, leaders.economy]
+    .filter(Boolean)
+    .filter((player, index, arr) => arr.findIndex(p => p?.id === player?.id) === index) as Player[];
 
   return (
     <LeagueShell>
@@ -70,7 +72,7 @@ export default function HomePage() {
                   <Radio className="h-4 w-4" />
                   View Live Score
                 </Link>
-                <Link href="/matches" className="secondary-button inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-black">
+                <Link href="/fixtures" className="secondary-button inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-black">
                   <CalendarDays className="h-4 w-4" />
                   View Matches
                 </Link>
@@ -89,7 +91,7 @@ export default function HomePage() {
             <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">Match center</p>
             <h2 className="mt-2 text-3xl font-black text-white">Recent and upcoming fixtures</h2>
           </div>
-          <Link href="/matches" className="inline-flex items-center gap-1 text-sm font-black text-emerald-200">
+          <Link href="/fixtures" className="inline-flex items-center gap-1 text-sm font-black text-emerald-200">
             All matches <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
