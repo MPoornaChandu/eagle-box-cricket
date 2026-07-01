@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, LockKeyhole, Mail } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { EbLogoVideo } from "@/components/EbLogoVideo";
 import { LoginBackgroundVideo } from "@/components/LoginBackgroundVideo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -11,8 +11,9 @@ import { adminLogin, isAdminSessionActive } from "@/lib/leagueStorage";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@eaglebox.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -50,9 +51,7 @@ export default function AdminLoginPage() {
       <form onSubmit={submit} className="admin-login-card login-card-reveal glass-panel relative z-10 w-[calc(100%_-_32px)] max-w-[27rem] rounded-2xl border-[rgba(34,197,94,0.24)] p-6 sm:p-7">
         <div className="flex items-center gap-3">
           <EbLogoVideo />
-          <div className="grid h-14 w-14 place-items-center rounded-lg border border-emerald-300/30 bg-emerald-300/12 text-emerald-100">
-            <LockKeyhole className="h-6 w-6" />
-          </div>
+          <span className="text-sm font-black uppercase tracking-[0.16em] text-emerald-200">Admin</span>
         </div>
         <p className="mt-5 text-xs font-black uppercase tracking-[0.22em] text-emerald-200">ADMIN LOGIN</p>
         <h1 className="mt-2 text-3xl font-black text-white">Eagle Box Control Room</h1>
@@ -60,19 +59,30 @@ export default function AdminLoginPage() {
         <label className="field-label mt-5 text-slate-200">
           Admin email
           <span className="relative block">
-            <Mail className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-emerald-200/60" />
-            <input value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} type="email" className="admin-login-input admin-login-input-with-icon bg-[rgba(7,12,10,0.72)] text-white placeholder:text-slate-500" placeholder="admin@eaglebox.com" autoComplete="username" autoFocus />
+            <Mail className="pointer-events-none absolute left-[18px] top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-emerald-200/60" />
+            <input value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} type="email" className="admin-login-input admin-login-input-with-icon bg-[rgba(7,12,10,0.72)] text-white placeholder:text-slate-500" placeholder="Enter admin email" autoComplete="username" autoFocus />
           </span>
         </label>
         <label className="field-label mt-4 text-slate-200">
           Password
-          <input value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} type="password" className="admin-login-input bg-[rgba(7,12,10,0.72)] text-white placeholder:text-slate-500" placeholder="Enter admin password" autoComplete="current-password" />
+          <span className="relative block">
+            <LockKeyhole className="pointer-events-none absolute left-[18px] top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-emerald-200/60" />
+            <input value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} type={showPassword ? "text" : "password"} className="admin-login-input admin-login-input-with-icon admin-login-input-with-toggle bg-[rgba(7,12,10,0.72)] text-white placeholder:text-slate-500" placeholder="Enter admin password" autoComplete="current-password" />
+            <button
+              type="button"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              onClick={() => setShowPassword((current) => !current)}
+              className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-slate-300 transition hover:bg-emerald-300/10 hover:text-emerald-100"
+            >
+              {showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}
+            </button>
+          </span>
         </label>
         {error ? <p className="mt-3 text-sm font-bold text-red-200">{error}</p> : null}
         <button type="submit" disabled={loading} className="premium-button mt-5 w-full px-4 py-3 text-sm">
           {loading ? "Signing in..." : "Login"}
         </button>
-        <Link href="/" className="mt-4 inline-flex items-center gap-2 text-xs font-black text-emerald-200 transition hover:text-emerald-100">
+        <Link href="/" className="mt-4 inline-flex items-center gap-2 text-xs font-black text-emerald-200 underline decoration-emerald-300/50 underline-offset-4 transition hover:text-emerald-100 hover:decoration-emerald-100">
           <ArrowLeft className="h-4 w-4" />
           Back to viewer login
         </Link>

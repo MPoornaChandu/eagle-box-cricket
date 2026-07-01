@@ -52,7 +52,7 @@ export default function EntryPage() {
                 <ShieldCheck className="h-5 w-5" />
               </span>
             </div>
-            <Link href="/admin/login" className="rounded-full border border-emerald-300/20 px-3 py-1.5 text-xs font-black text-emerald-100 transition hover:border-emerald-300/50 hover:bg-emerald-400/10">
+            <Link href="/admin/login" className="secondary-button rounded-full px-3 py-1.5 text-xs font-black">
               Admin Login
             </Link>
           </div>
@@ -61,7 +61,10 @@ export default function EntryPage() {
           </p>
           <h1 className="mt-2 text-3xl font-black leading-tight text-white">Enter Eagle Box</h1>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">
-            Continue as viewer or sign in as admin.
+            Watch live scores and match updates. Continue as viewer or sign in as admin.
+          </p>
+          <p className="mt-3 text-xs font-bold text-slate-400">
+            No account needed. Enter your name to follow live scores.
           </p>
 
           <label className="field-label mt-5 text-slate-200">

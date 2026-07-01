@@ -15,6 +15,9 @@ export default function PointsTablePage() {
         <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">Standings</p>
         <h1 className="mt-2 text-4xl font-black text-white md:text-6xl">EBC Points Table</h1>
         <p className="mt-3 max-w-2xl text-slate-300">Sorted by points, net run rate, and wins. Top four teams qualify.</p>
+        <p className="mt-3 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+          Last updated {new Date().toLocaleDateString()} - Top four highlighted
+        </p>
         <div className="mt-8">
           <PointsTable rows={pointsTable} teams={teams} />
         </div>

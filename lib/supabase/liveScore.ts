@@ -818,7 +818,6 @@ async function saveActiveLiveMatch(supabase: SupabaseClient, row: LiveMatchWrite
       .select("*")
       .single();
     if (error) handleSupabaseError("Update active live match", error);
-    console.log("Live match saved to Supabase", data);
     return data as SupabaseLiveMatchRow;
   }
 
@@ -828,7 +827,6 @@ async function saveActiveLiveMatch(supabase: SupabaseClient, row: LiveMatchWrite
     .select("*")
     .single();
   if (error) handleSupabaseError("Insert active live match", error);
-  console.log("Live match saved to Supabase", data);
   return data as SupabaseLiveMatchRow;
 }
 
@@ -838,7 +836,6 @@ export async function startSupabaseLiveMatch(payload: StartSupabaseLiveMatchPayl
   const ids = await bestEffortMirrorRows(payload.match, payload.teams, payload.players);
   const refs = await resolveLiveReferences(supabase, payload.match, ids);
   const row = liveMatchPatch(payload.match, refs, ids.playerIds);
-  console.log("Starting Supabase live match", row);
 
   return saveActiveLiveMatch(supabase, row);
 }
@@ -853,14 +850,12 @@ export async function updateSupabaseLiveMatch(liveMatchId: string, patch: Partia
     .select("*")
     .single();
   if (error) handleSupabaseError("Update live_matches", error);
-  console.log("Updated live_matches", data);
   return data as SupabaseLiveMatchRow;
 }
 
 export async function insertSupabaseBallEvent(event: BallEventInsertRow): Promise<SupabaseBallEventRow> {
   const supabase = requireSupabase();
   await assertAdminAccess(supabase);
-  console.log("Inserted ball event", event);
   const { data, error } = await supabase
     .from("ball_events")
     .insert(event)
@@ -917,7 +912,6 @@ export async function applySupabaseBallUpdate(params: ApplySupabaseBallUpdatePar
   if (liveMatchResult.error) handleSupabaseError("Update live_matches for ball update", liveMatchResult.error);
   if (ballEventResult.error) handleSupabaseError("Insert ball_events for ball update", ballEventResult.error);
 
-  console.log("Fast Supabase ball update saved", { liveMatch: liveMatchResult.data, ballEvent: ballEventResult.data });
   return {
     liveMatch: liveMatchResult.data as SupabaseLiveMatchRow,
     ballEvent: ballEventResult.data as SupabaseBallEventRow | undefined
@@ -979,8 +973,8 @@ function eventTypeFromRow(row: SupabaseBallEventRow): BallEventType {
 
 function ballLabel(type: BallEventType, runs: number, extras: number) {
   if (type === "wicket") return "W";
-  if (type === "wide") return "Wd";
-  if (type === "no-ball") return "Nb";
+  if (type === "wide") return "WD";
+  if (type === "no-ball") return "NB";
   if (type === "bye") return `${extras}B`;
   if (type === "leg-bye") return `${extras}LB`;
   return String(runs);

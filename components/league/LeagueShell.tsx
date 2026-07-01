@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BarChart3, CalendarDays, Home, LogOut, Menu, Radio, Trophy, UserRound, Users, X } from "lucide-react";
 import { EbLogoVideo } from "@/components/EbLogoVideo";
-import { FloatingViewerVideo } from "@/components/FloatingViewerVideo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getLiveMatch } from "@/lib/leagueStorage";
 import { cn } from "@/lib/utils";
@@ -55,7 +54,7 @@ export function LeagueShell({ children }: { children: ReactNode }) {
             href={item.href}
             onClick={() => setOpen(false)}
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-sm font-black text-slate-300 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-white",
+              "inline-flex w-full items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-sm font-black text-slate-300 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-white lg:w-auto",
               active && "border-emerald-300/30 bg-emerald-400/12 text-emerald-100 shadow-[0_0_22px_rgba(34,197,94,0.12)]"
             )}
           >
@@ -71,12 +70,12 @@ export function LeagueShell({ children }: { children: ReactNode }) {
   return (
     <div className="league-public min-h-screen">
       <header className="league-nav sticky top-0 z-50 border-b border-emerald-100 bg-white/88 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[90rem] items-center justify-between gap-4 px-4 py-3 lg:px-6">
-          <Link href="/home" className="flex items-center gap-3" onClick={() => setOpen(false)}>
+        <div className="mx-auto flex max-w-[90rem] items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-4 lg:px-6">
+          <Link href="/home" className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3.5 lg:flex-none" onClick={() => setOpen(false)}>
             <EbLogoVideo />
-            <span>
-              <span className="block text-sm font-black uppercase tracking-[0.18em] text-emerald-800">Eagle Box</span>
-              <span className="block text-xs font-bold text-slate-500">Cricket League</span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-black uppercase tracking-[0.14em] text-emerald-800">EAGLE BOX</span>
+              <span className="hidden whitespace-nowrap text-xs font-bold text-slate-500 sm:block">Cricket League</span>
             </span>
           </Link>
           <div className="hidden lg:block">{nav}</div>
@@ -93,6 +92,7 @@ export function LeagueShell({ children }: { children: ReactNode }) {
             <button
               type="button"
               aria-label={open ? "Close menu" : "Open menu"}
+              aria-expanded={open}
               onClick={() => setOpen((current) => !current)}
               className="secondary-button grid h-10 w-10 place-items-center lg:hidden"
             >
@@ -111,20 +111,22 @@ export function LeagueShell({ children }: { children: ReactNode }) {
         ) : null}
       </header>
       <main>{children}</main>
-      <FloatingViewerVideo />
-      <footer className="border-t border-emerald-100 bg-white/70 px-4 py-8 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+      <footer className="app-footer px-4 py-8 text-xs font-semibold text-slate-500">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 sm:flex-row">
-          <span className="font-black text-emerald-700">EBC League</span>
+          <span className="font-black uppercase tracking-[0.16em] text-emerald-700">Eagle Box Cricket</span>
           <span>© 2026 Eagle Box Cricket League</span>
-          <nav className="flex flex-wrap justify-center gap-4">
+          <nav className="flex flex-wrap justify-center gap-4 uppercase tracking-[0.14em]">
             <Link href="/home">Home</Link>
+            <Link href="/live-score">Live Score</Link>
             <Link href="/fixtures">Fixtures</Link>
-            <Link href="/points-table">Standings</Link>
+            <Link href="/points-table">Points Table</Link>
             <Link href="/players">Players</Link>
+            <Link href="/teams">Teams</Link>
+            <Link href="/results">Results</Link>
           </nav>
         </div>
         <p className="mt-3 text-[0.7rem] normal-case tracking-normal text-slate-400">
-          Live scores powered by Supabase Realtime
+          Eagle Box Cricket - live scoring, fixtures, results and tournament standings. Live scores powered by Supabase Realtime.
         </p>
       </footer>
     </div>

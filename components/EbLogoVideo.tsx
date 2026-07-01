@@ -27,7 +27,7 @@ export function EbLogoVideo({ size = "md" }: EbLogoVideoProps) {
             muted
             loop
             playsInline
-            preload="auto"
+            preload="metadata"
             onError={() => setShowVideo(false)}
           />
           <span className="absolute inset-0 bg-emerald-950/5 dark:bg-black/20" />

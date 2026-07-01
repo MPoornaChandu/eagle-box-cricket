@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BarChart3, CalendarPlus, Radio, Settings, Trophy, UserRound } from "lucide-react";
+import { BarChart3, CalendarPlus, Radio, Settings, ShieldCheck, Target, Trophy, UserRound, Zap } from "lucide-react";
 import { AdminShell } from "@/components/league/AdminShell";
-import { LiveScorePanel, PointsTable, StatPill } from "@/components/league/LeagueCards";
+import { LiveScorePanel, PointsTable } from "@/components/league/LeagueCards";
 import type { Match, Player, PointsTableRow, Team } from "@/lib/leagueTypes";
 import { calculatePointsTable, getLiveMatch, getMatches, getPlayers, getTeam, getTeams, topPlayers } from "@/lib/leagueStorage";
 
@@ -35,11 +35,10 @@ export default function AdminDashboardPage() {
     const totalWickets = completed.reduce((sum, match) => sum + (match.result?.teamAWickets ?? 0) + (match.result?.teamBWickets ?? 0), 0);
     const leaders = topPlayers(players);
     const nextMatch = pending[0];
-    const countdown = nextMatch
-      ? Math.max(0, new Date(nextMatch.dateTime).getTime() - Date.now())
-      : 0;
+    const countdown = nextMatch ? Math.max(0, new Date(nextMatch.dateTime).getTime() - Date.now()) : 0;
     const days = Math.floor(countdown / 86_400_000);
     const hours = Math.floor((countdown % 86_400_000) / 3_600_000);
+    const minutes = Math.floor((countdown % 3_600_000) / 60_000);
     return {
       completed: completed.length,
       pending: pending.length,
@@ -49,7 +48,7 @@ export default function AdminDashboardPage() {
       topRunScorer: leaders.runs,
       topWicketTaker: leaders.wickets,
       nextMatch,
-      countdownText: nextMatch ? `${days}d ${hours}h` : "No upcoming match"
+      countdownText: nextMatch ? (days === 0 && hours === 0 ? "Today" : `Starts in ${days ? `${days}d ` : ""}${hours}h ${minutes}m`) : "No upcoming match"
     };
   }, [matches, players, points, teams]);
 
@@ -58,23 +57,23 @@ export default function AdminDashboardPage() {
       <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">Control room</p>
       <h1 className="mt-2 text-4xl font-black text-white">Admin Dashboard</h1>
       <section className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatPill label="Matches played" value={stats.completed} />
-        <StatPill label="Total runs" value={stats.totalRuns} />
-        <StatPill label="Total wickets" value={stats.totalWickets} />
-        <StatPill label="Live match" value={liveMatch ? liveMatch.matchNumber : "None"} />
+        <AdminStat icon={<CalendarPlus className="h-5 w-5" />} label="Matches played" value={stats.completed} tone="green" />
+        <AdminStat icon={<Zap className="h-5 w-5" />} label="Total runs" value={stats.totalRuns} tone="amber" />
+        <AdminStat icon={<Target className="h-5 w-5" />} label="Total wickets" value={stats.totalWickets} tone="red" />
+        <AdminStat icon={<Radio className="h-5 w-5" />} label="Live match" value={liveMatch ? liveMatch.matchNumber : "None"} tone="blue" live={Boolean(liveMatch)} />
       </section>
       <section className="mt-6 grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+        <div className="broadcast-card rounded-lg p-5">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-200">Top run-scorer</p>
           <h2 className="mt-2 text-2xl font-black text-white">{stats.topRunScorer?.name ?? "TBA"}</h2>
           <p className="mt-1 text-sm font-bold text-slate-400">{stats.topRunScorer?.runs ?? 0} runs</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+        <div className="broadcast-card rounded-lg p-5">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-red-200">Top wicket-taker</p>
           <h2 className="mt-2 text-2xl font-black text-white">{stats.topWicketTaker?.name ?? "TBA"}</h2>
           <p className="mt-1 text-sm font-bold text-slate-400">{stats.topWicketTaker?.wickets ?? 0} wickets</p>
         </div>
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+        <div className="broadcast-card rounded-lg p-5">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-200">Upcoming match countdown</p>
           <h2 className="mt-2 text-2xl font-black text-white">{stats.countdownText}</h2>
           <p className="mt-1 text-sm font-bold text-slate-400">
@@ -84,7 +83,7 @@ export default function AdminDashboardPage() {
       </section>
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <LiveScorePanel match={liveMatch} teams={teams} players={players} />
-        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5">
+        <div className="broadcast-card rounded-lg p-5">
           <h2 className="text-2xl font-black text-white">Quick actions</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Action href="/admin/live-score" icon={<Radio className="h-4 w-4" />} label="Live Score Control" />
@@ -96,7 +95,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </section>
-      <section className="mt-6 rounded-lg border border-white/10 bg-white/[0.045] p-5">
+      <section className="broadcast-card mt-6 rounded-lg p-5">
         <h2 className="mb-4 text-2xl font-black text-white">Points Table Data</h2>
         <PointsTable rows={points.slice(0, 4)} teams={teams} compact />
       </section>
@@ -106,4 +105,17 @@ export default function AdminDashboardPage() {
 
 function Action({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return <Link href={href} className="secondary-button flex items-center gap-2 px-4 py-3 text-sm font-black">{icon}{label}</Link>;
+}
+
+function AdminStat({ icon, label, value, tone, live = false }: { icon: React.ReactNode; label: string; value: string | number; tone: "green" | "amber" | "red" | "blue"; live?: boolean }) {
+  return (
+    <div className={`metric-card metric-card--${tone} rounded-lg p-5 ${live ? "live-pulse" : ""}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-400/10 text-emerald-200">{icon}</span>
+        {live ? <ShieldCheck className="h-4 w-4 text-emerald-200" /> : null}
+      </div>
+      <p className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className="mt-2 text-3xl font-black text-white">{value}</p>
+    </div>
+  );
 }

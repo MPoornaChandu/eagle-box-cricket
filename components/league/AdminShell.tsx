@@ -81,7 +81,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="league-admin min-h-screen">
-      <aside className="admin-sidebar fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-white/10 p-4 lg:block">
+      <aside className="admin-sidebar fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-white/10 bg-[var(--panel-strong)] p-4 lg:block">
         <Link href="/admin/dashboard" className="mb-5 flex items-center gap-3 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3">
           <EbLogoVideo />
           <span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { LeagueShell } from "@/components/league/LeagueShell";
 import { PlayerAvatar, StatPill, TeamBadge } from "@/components/league/LeagueCards";
@@ -17,33 +18,79 @@ export default function PlayerDetailsPage() {
   const performances = useMemo(() => (player ? calculatePlayerPerformances(player.id, matches, players, teams) : []), [matches, player, players, teams]);
 
   if (!player || !stats) {
-    return <LeagueShell><main className="mx-auto max-w-7xl px-4 py-14"><h1 className="text-3xl font-black text-white">Player not found</h1></main></LeagueShell>;
+    return (
+      <LeagueShell>
+        <main className="mx-auto max-w-7xl px-4 py-14">
+          <section className="sport-card mx-auto max-w-xl rounded-lg border border-white/10 bg-white/[0.055] p-6 text-center">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">Player profile</p>
+            <h1 className="mt-3 text-3xl font-black text-white">Player not found</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-300">We could not find that player profile. Browse the full squad list or return home.</p>
+            <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/players" className="secondary-button px-4 py-2 text-sm font-black">Back to Players</Link>
+              <Link href="/home" className="premium-button px-4 py-2 text-sm">Go Home</Link>
+            </div>
+          </section>
+        </main>
+      </LeagueShell>
+    );
   }
+
+  const formattedDob = player.dateOfBirth
+    ? new Date(player.dateOfBirth).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })
+    : "-";
+  const featuredStats: Array<[string, string | number, "green" | "amber" | "red" | "blue"]> =
+    player.role === "Bowler"
+      ? [
+          ["Wickets", stats.wickets || "N/A", "red"],
+          ["Economy", stats.economy ? stats.economy.toFixed(2) : "N/A", "green"],
+          ["Best Bowling", stats.bestBowling || "N/A", "amber"],
+          ["Strike Rate", stats.bowlingStrikeRate ? stats.bowlingStrikeRate.toFixed(2) : "N/A", "blue"]
+        ]
+      : player.role === "All-rounder"
+        ? [
+            ["Runs", stats.runs || "N/A", "green"],
+            ["Wickets", stats.wickets || "N/A", "red"],
+            ["Strike Rate", stats.strikeRate ? stats.strikeRate.toFixed(2) : "N/A", "amber"],
+            ["Economy", stats.economy ? stats.economy.toFixed(2) : "N/A", "blue"]
+          ]
+        : [
+            ["Runs", stats.runs || "N/A", "green"],
+            ["Average", stats.battingAverage ? stats.battingAverage.toFixed(2) : "N/A", "amber"],
+            ["Strike Rate", stats.strikeRate ? stats.strikeRate.toFixed(2) : "N/A", "blue"],
+            ["Highest", stats.highestScore || "N/A", "red"]
+          ];
 
   return (
     <LeagueShell>
       <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
-        <div className="sport-card rounded-lg border border-white/70 bg-white/85 p-6">
+        <Link href="/players" className="secondary-button mb-4 inline-flex px-4 py-2 text-sm font-black">
+          Back to Players
+        </Link>
+        <div className="sport-card rounded-lg border border-white/10 p-6" style={{ background: `linear-gradient(135deg, ${team?.primaryColor ?? "#059669"}3d, var(--panel-strong))` }}>
           <div className="flex flex-wrap items-center gap-4">
             <PlayerAvatar player={player} size="lg" />
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">#{player.jerseyNumber} - {player.role}</p>
               <h1 className="mt-1 text-4xl font-black text-white md:text-6xl">{player.name}</h1>
-              <div className="mt-3 flex items-center gap-2 text-slate-300"><TeamBadge team={team} size="sm" />{team?.name}</div>
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-slate-300">
+                <TeamBadge team={team} size="sm" />
+                <span>{team?.name}</span>
+                <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">{player.role}</span>
+              </div>
             </div>
           </div>
           <p className="mt-5 max-w-3xl text-sm leading-6 text-slate-300">{player.bio}</p>
         </div>
 
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatPill label="Age" value={getAge(player.dateOfBirth) || "-"} />
-          <StatPill label="DOB" value={player.dateOfBirth ?? "-"} />
-          <StatPill label="Nationality" value={player.nationality ?? "-"} />
-          <StatPill label="Team" value={team?.shortCode ?? "TBA"} />
-          <StatPill label="Batting" value={player.battingStyle} />
-          <StatPill label="Bowling" value={player.bowlingStyle} />
-          <StatPill label="POTM" value={stats.playerOfMatchAwards} />
-          <StatPill label="Recent" value={player.recentScores[0] ?? "-"} />
+          {featuredStats.map(([label, value, tone]) => <StatPill key={label} label={label} value={value} tone={tone} />)}
+        </section>
+
+        <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatPill label="Age" value={getAge(player.dateOfBirth) || "N/A"} />
+          <StatPill label="DOB" value={formattedDob === "-" ? "N/A" : formattedDob} />
+          <StatPill label="Nationality" value={player.nationality ?? "N/A"} />
+          <StatPill label="POTM" value={`${stats.playerOfMatchAwards} awards`} />
         </section>
 
         <section className="mt-8 grid gap-6 xl:grid-cols-3">
@@ -78,8 +125,8 @@ export default function PlayerDetailsPage() {
           ]} />
         </section>
 
-        <section className="mt-8 rounded-lg border border-emerald-100 bg-white p-5 shadow-sm">
-          <h2 className="text-2xl font-black text-white">Recent form</h2>
+        <section className="broadcast-card mt-8 rounded-lg p-5 shadow-sm">
+          <h2 className="text-2xl font-black text-white">Recent performance</h2>
           <div className="mt-4 grid gap-2 md:grid-cols-6">
             {player.recentScores.map((score, index) => (
               <span key={`${score}-${index}`} className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-center text-sm font-black text-emerald-800">{score}</span>
@@ -95,8 +142,8 @@ export default function PlayerDetailsPage() {
           </div>
         </section>
 
-        <section className="mt-8 overflow-hidden rounded-lg border border-emerald-100 bg-white shadow-sm">
-          <div className="border-b border-emerald-100 p-5">
+        <section className="broadcast-card mt-8 overflow-hidden rounded-lg shadow-sm">
+          <div className="border-b border-emerald-300/10 p-5">
             <h2 className="text-2xl font-black text-white">Match-by-match performance</h2>
           </div>
           <div className="overflow-x-auto">
@@ -127,13 +174,13 @@ export default function PlayerDetailsPage() {
 
 function StatsBlock({ title, items }: { title: string; items: Array<[string, string | number]> }) {
   return (
-    <section className="rounded-lg border border-emerald-100 bg-white p-5 shadow-sm">
+    <section className="broadcast-card rounded-lg p-5 shadow-sm">
       <h2 className="text-xl font-black text-white">{title}</h2>
       <div className="mt-4 grid grid-cols-2 gap-2">
         {items.map(([label, value]) => (
-          <span key={label} className="rounded-lg bg-slate-50 px-3 py-2">
+          <span key={label} className="metric-card rounded-lg px-3 py-2">
             <span className="block text-[0.68rem] font-black uppercase tracking-[0.14em] text-slate-500">{label}</span>
-            <span className="text-base font-black text-white">{value}</span>
+            <span className="text-base font-black text-white">{value || "N/A"}</span>
           </span>
         ))}
       </div>

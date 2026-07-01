@@ -1,4 +1,4 @@
-# Eagle Box Cricket — Tournament Operations Platform
+# Eagle Box Cricket - Tournament Operations Platform
 
 A full-stack cricket tournament management platform for managing teams, fixtures, match results, standings, reports, public scoreboard, workflow tracking, and AI-powered tournament insights.
 
@@ -9,7 +9,7 @@ A full-stack cricket tournament management platform for managing teams, fixtures
 | Role | Email | Password | Access |
 | --- | --- | --- | --- |
 | Admin | `admin@eaglebox.com` | `admin123` | Create, edit, delete, and manage tournament data |
-| Viewer | `viewer@eaglebox.com` | `viewer123` | Read-only tournament access |
+| Viewer | Any name or email | No password | Read-only public access |
 
 ## Feature Highlights
 
@@ -98,6 +98,22 @@ Supabase schema is located at:
 supabase/schema.sql
 ```
 
+## Project Structure
+
+The working Next.js app remains at the repository root for Vercel compatibility:
+
+```text
+app/          Next.js App Router pages and API routes
+components/   Shared UI and league components
+hooks/        Client hooks
+lib/          Storage, Supabase, scoring, and utility logic
+public/       Static assets and videos used by the app
+supabase/     Current Supabase schema SQL
+backend/      Backend organization notes for Supabase SQL, migrations, seeds, and scripts
+```
+
+The frontend was not moved into `frontend/` because the existing Vercel setup expects the Next.js root files (`app/`, `package.json`, `next.config.ts`, `public/`) at the repository root.
+
 ## Cricket Logic
 
 Tournament points are configurable from Settings:
@@ -183,7 +199,7 @@ If Supabase is not configured or becomes unavailable during local use, the app f
 1. Open `/admin/login` on Device 1 and sign in with a Supabase Auth admin user that exists in `admins`.
 2. Go to `/admin/live-score`, select a match, batting team, striker, non-striker, and bowler.
 3. Click **Start Match**, then use the ball outcome buttons.
-4. Open `/live` or `/matches/[id]` on Device 2. The viewer page subscribes to Supabase Realtime (`live_matches`, `ball_events`, and `league_snapshots`) and updates without a full reload. A 5-second polling refresh remains as backup.
+4. Open `/live-score` or `/matches/[id]` on Device 2. The viewer page subscribes to Supabase Realtime (`live_matches`, `ball_events`, and `league_snapshots`) and updates without a full reload. A 5-second polling refresh remains as backup. The old `/live` route redirects to `/live-score`.
 
 ## Gemini Assistant
 

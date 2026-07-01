@@ -29,12 +29,29 @@ export default function TeamDetailsPage() {
   const topPerformers = [...squad].sort((a, b) => b.runs + b.wickets * 18 - (a.runs + a.wickets * 18)).slice(0, 3);
 
   if (!team) {
-    return <LeagueShell><main className="mx-auto max-w-7xl px-4 py-14"><h1 className="text-3xl font-black text-white">Team not found</h1></main></LeagueShell>;
+    return (
+      <LeagueShell>
+        <main className="mx-auto max-w-7xl px-4 py-14">
+          <section className="sport-card mx-auto max-w-xl rounded-lg border border-white/10 bg-white/[0.055] p-6 text-center">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-amber-200">Team detail</p>
+            <h1 className="mt-3 text-3xl font-black text-white">Team not found</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-300">That team is not available in the league data. Return to the teams list to continue browsing squads.</p>
+            <div className="mt-5 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/teams" className="secondary-button px-4 py-2 text-sm font-black">Back to Teams</Link>
+              <Link href="/home" className="premium-button px-4 py-2 text-sm">Go Home</Link>
+            </div>
+          </section>
+        </main>
+      </LeagueShell>
+    );
   }
 
   return (
     <LeagueShell>
       <section className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
+        <Link href="/teams" className="secondary-button mb-4 inline-flex px-4 py-2 text-sm font-black">
+          Back to Teams
+        </Link>
         <div className="sport-card rounded-lg border border-white/10 p-6" style={{ background: `linear-gradient(135deg, ${team.primaryColor}55, rgba(2,6,23,0.82))` }}>
           <div className="flex flex-wrap items-center gap-4">
             <TeamBadge team={team} size="lg" />
@@ -45,7 +62,7 @@ export default function TeamDetailsPage() {
             </div>
           </div>
         </div>
-        <section className="mt-8 grid gap-4 md:grid-cols-3">
+        <section className="mt-8 grid gap-4 md:grid-cols-5">
           <Info label="Matches" value={team.matches} />
           <Info label="Wins" value={team.wins} />
           <Info label="Losses" value={tableRow?.lost ?? Math.max(team.matches - team.wins, 0)} />
@@ -85,5 +102,5 @@ export default function TeamDetailsPage() {
 }
 
 function Info({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-lg border border-white/10 bg-white/[0.045] p-5"><p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</p><p className="mt-2 text-3xl font-black text-white">{value}</p></div>;
+  return <div className="metric-card rounded-lg p-5"><p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{label}</p><p className="mt-2 text-3xl font-black text-white">{value}</p></div>;
 }

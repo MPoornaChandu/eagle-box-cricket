@@ -1559,8 +1559,8 @@ export function startLiveMatch(matchId: string, battingTeamId: string, strikerId
 
 function eventLabel(type: BallEventType, runs: number) {
   if (type === "wicket") return "W";
-  if (type === "wide") return "Wd";
-  if (type === "no-ball") return "Nb";
+  if (type === "wide") return "WD";
+  if (type === "no-ball") return "NB";
   if (type === "bye") return `${runs}B`;
   if (type === "leg-bye") return `${runs}LB`;
   return String(runs);
@@ -1666,7 +1666,7 @@ export function recordBallEvent(matchId: string, type: BallEventType, value = 0,
   live.balls = innings.balls;
   live.partnershipRuns += totalRuns;
   if (legalDelivery) live.partnershipBalls += 1;
-  live.lastSix = [...live.lastSix, label].slice(-6);
+  if (legalDelivery) live.lastSix = [...live.lastSix, label].slice(-6);
   live.commentary = [event, ...live.commentary].slice(0, 80);
 
   const strikeChanges = legalDelivery && (batRuns % 2 === 1 || nextBalls % 6 === 0);

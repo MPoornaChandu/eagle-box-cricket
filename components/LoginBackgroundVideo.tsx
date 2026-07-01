@@ -15,7 +15,7 @@ export function LoginBackgroundVideo() {
           muted
           loop
           playsInline
-          preload="auto"
+          preload="metadata"
           onError={() => setShowVideo(false)}
         />
       ) : null}
